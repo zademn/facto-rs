@@ -1,0 +1,9 @@
+[workspace]
+members = [
+    "fermat",
+    "types",
+    "trial-division",
+    "dixon",
+    "quadratic-sieve",
+    "algorithms"
+]
