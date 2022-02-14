@@ -1,6 +1,6 @@
 use std::{str::FromStr, time::Instant};
 
-use fermat::{fermat, fermat2};
+use fermat::{fermat};
 use rug::Integer;
 
 fn main() {

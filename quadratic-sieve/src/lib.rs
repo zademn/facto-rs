@@ -1,5 +1,5 @@
 use algorithms::gaussian_elimination_gf2;
-use algorithms::{fb_factorization, pow_mod, tonelli_shanks};
+use algorithms::{fb_factorization, tonelli_shanks};
 use indicatif::ProgressBar;
 use nalgebra::DMatrix;
 use rug::{ops::Pow, Complete, Integer};
@@ -24,6 +24,7 @@ fn find_roots(n: &Integer, factor_base: &[u64]) -> HashMap<u64, (u64, u64)> {
     let mut roots = HashMap::new();
     for &pi in factor_base.iter().skip(1) {
         let root = tonelli_shanks(n.clone(), pi);
+        // use algorithms::pow_mod;
         // assert_eq!(
         //     pow_mod(root, 2, pi),
         //     (n.clone() % pi).to_u64().unwrap(),
@@ -47,7 +48,7 @@ pub fn quadratic_sieve(n: Integer, s: usize, factor_base: &[u64]) -> Option<(Int
     // 1. Initialization
     // Find roots x_p^2 ≡ n (mod p)
     println!("Searching roots...");
-    let mut roots: HashMap<u64, (u64, u64)> = find_roots(&n, &factor_base);
+    let mut roots: HashMap<u64, (u64, u64)> = find_roots(&n, factor_base);
     roots.insert(2, (1, 1)); // add 2 to factor base
     println!("Roots computed");
 
@@ -107,7 +108,7 @@ pub fn quadratic_sieve(n: Integer, s: usize, factor_base: &[u64]) -> Option<(Int
                 let xi = start.clone() + i as u64;
                 let qxi = (xi.clone() * &xi - &n) % &n;
                 // Check for B-smooth and add to relations
-                if let Some(factorization) = fb_factorization(qxi.clone(), &factor_base) {
+                if let Some(factorization) = fb_factorization(qxi.clone(), factor_base) {
                     relations_x.push(xi);
                     relations_qx.push(qxi % &n);
                     exponents.push(factorization);
@@ -139,7 +140,7 @@ pub fn quadratic_sieve(n: Integer, s: usize, factor_base: &[u64]) -> Option<(Int
     let matrix = DMatrix::from_row_slice(nrows, ncols, &all_exponents);
     // Compute the gaussian elimination.
     // We only care about the marked columns since they contain the linearly independent vectors
-    let (matrix, marked) = gaussian_elimination_gf2(matrix.clone());
+    let (matrix, marked) = gaussian_elimination_gf2(matrix);
 
     // println!("{:?}", marked);
     // Get the index of the l.i. and l.d. vectors
@@ -224,7 +225,7 @@ pub fn quadratic_sieve(n: Integer, s: usize, factor_base: &[u64]) -> Option<(Int
             let q = n.clone() / &p;
             println!("p = {}", p);
             println!("q = {}", q);
-            println!("n % p {}", n.clone() % &p);
+            println!("n % p {}", n % &p);
             return Some((p, q));
         }
     }

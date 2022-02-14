@@ -18,7 +18,6 @@ impl Factor {
 }
 
 pub static N_PRECOMPUTED_PRIMES: usize = 10000;
-/// First primes and their logarithms
 lazy_static! {
     #[derive(Debug)]
     pub static ref PRIMES: Vec<u64> = {
@@ -30,6 +29,7 @@ lazy_static! {
         }
         t
     };
+    /// First primes and their logarithms
     #[derive(Debug)]
     pub static ref LOG_PRIMES: HashMap<u64, u8> = {
         let mut t: HashMap<u64, u8> = HashMap::new();

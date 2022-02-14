@@ -5,7 +5,7 @@ use rug::Integer;
 fn main() {
     let p = Integer::from_str_radix("4163498621", 10).unwrap();
     let q = Integer::from_str_radix("3359099369", 10).unwrap();
-    let n = p.clone() * &q;
+    let n = p * &q;
 
     let bound = (big_l(n.clone()) as f64).sqrt().round() as u64 + 1;
     //let bound = 7;

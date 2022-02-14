@@ -78,10 +78,10 @@ pub fn pow_mod(a: u64, e: u64, n: u64) -> u64 {
 pub fn remove_factor(mut n: u64, factor: u64) -> (u64, u64) {
     let mut count = 0;
     while n % factor == 0 {
-        n = n / factor;
+        n /= factor;
         count += 1;
     }
-    return (n, count);
+    (n, count)
 }
 
 /// Computes the prime factorization of an integer `n` given a factor base by repeated division
@@ -103,12 +103,12 @@ pub fn fb_factorization(mut n: Integer, fb: &[u64]) -> Option<BTreeMap<u64, u32>
 /// http://thales.doa.fmph.uniba.sk/macaj/skola/teoriapoli/primes.pdf
 pub fn jacobi(mut a: u64, mut m: u64) -> i64 {
     // 1. Reduction loops
-    a = a % m;
+    a %= m;
     let mut t = 1;
     while a != 0 {
         while (a & 1) == 0 {
             // even
-            a = a / 2;
+            a %= 2;
             let r = m % 8;
             if r == 3 || r == 5 {
                 t = -t;
@@ -118,13 +118,13 @@ pub fn jacobi(mut a: u64, mut m: u64) -> i64 {
         if a % 4 == 3 && m % 4 == 3 {
             t = -t;
         }
-        a = a % m;
+        a %= m;
     }
     // 2. Termination
     if m == 1 {
         return t;
     }
-    return 0;
+    0
 }
 
 /// Given an odd prime p and an integer a with jacobi(a, p) = 1
@@ -133,7 +133,7 @@ pub fn jacobi(mut a: u64, mut m: u64) -> i64 {
 /// Algorithm 2.3.8 from http://thales.doa.fmph.uniba.sk/macaj/skola/teoriapoli/primes.pdf
 /// Wikipedia page: https://en.wikipedia.org/wiki/Tonelli%E2%80%93Shanks_algorithm
 pub fn tonelli_shanks(a: Integer, p: u64) -> u64 {
-    let a = (a % &p).to_u64().unwrap();
+    let a = (a % p).to_u64().unwrap();
     assert_eq!(jacobi(a, p), 1);
     // Check easy cases
     //let r = p % 8;
@@ -170,11 +170,10 @@ pub fn tonelli_shanks(a: Integer, p: u64) -> u64 {
     let mut m = 0;
     for i in 0..s {
         if (pow_mod(mul_mod(big_a, pow_mod(big_d, m, p), p), 1 << (s - 1 - i), p) + 1) % p == 0 {
-            m = m + (1 << i);
+            m += 1 << i;
         }
     }
-    let x = mul_mod(pow_mod(a, (t + 1) / 2, p), pow_mod(big_d, m / 2, p), p);
-    x
+    mul_mod(pow_mod(a, (t + 1) / 2, p), pow_mod(big_d, m / 2, p), p)
 }
 
 /// Given an odd prime p and an integer a with jacobi(a, p) = 1
@@ -226,8 +225,7 @@ fn tonelli_shanks_big(a: Integer, p: Integer) -> Integer {
         }
     }
     let e = (t + 1u32) / 2u32;
-    let x = a.pow_mod(&e, &p).unwrap() * d.pow_mod(&(m / 2), &p).unwrap() % &p;
-    x
+    a.pow_mod(&e, &p).unwrap() * d.pow_mod(&(m / 2), &p).unwrap() % &p
 }
 
 /// Fast gaussian elimination in GF(2) implemented after
@@ -247,17 +245,13 @@ pub fn gaussian_elimination_gf2(mut m: DMatrix<u8>) -> (DMatrix<u8>, Vec<bool>) 
                 // println!("Pivot found: {:?}", (i + 1, j + 1));
                 marks[i] = true; // if we found a pivot found mark row i
                 for k in 0..m.ncols() {
-                    if k != j {
-                        if m[(i, k)] == 1 {
-                            // println!("Other row found: {:?}", (i + 1, k + 1));
-                            let t = DVector::from_vec(xor(
-                                m.column(k).as_slice(),
-                                m.column(j).as_slice(),
-                            ));
-                            m.set_column(k, &t);
-                            // println!("{}", m);
-                            // println!("{:?}", marks);
-                        }
+                    if k != j && m[(i, k)] == 1 {
+                        // println!("Other row found: {:?}", (i + 1, k + 1));
+                        let t =
+                            DVector::from_vec(xor(m.column(k).as_slice(), m.column(j).as_slice()));
+                        m.set_column(k, &t);
+                        // println!("{}", m);
+                        // println!("{:?}", marks);
                     }
                 }
                 break; // no reason to search for another pivot so break
@@ -272,13 +266,12 @@ pub fn big_l(n: Integer) -> u64 {
     let ln_n = n.significant_bits();
     let ln_ln_n = Integer::from(ln_n).significant_bits();
     let e = (Integer::from(ln_n) * ln_ln_n).sqrt().to_u32().unwrap();
-    return 1 << e; // 2^e
+    1 << e // 2^e
 }
 #[cfg(test)]
 mod tests {
 
-    use std::collections::HashMap;
-use nalgebra::{DMatrix, RowDVector};
+    use nalgebra::{DMatrix, RowDVector};
 
     use super::*;
 
@@ -287,7 +280,7 @@ use nalgebra::{DMatrix, RowDVector};
         let bv1 = vec![0, 0, 1, 1];
         let bv2 = &vec![0, 1, 0, 1];
 
-        let xor_res = xor(&bv1, &bv2);
+        let xor_res = xor(&bv1, bv2);
         dbg!(&xor_res);
         assert_eq!(xor_res, vec![0, 1, 1, 0]);
     }
@@ -411,7 +404,7 @@ use nalgebra::{DMatrix, RowDVector};
     #[test]
     fn test_fb_factorization() {
         let n = 2u64.pow(3) * 3u64.pow(4) * 5u64.pow(10);
-        let mut good = HashMap::new();
+        let mut good = BTreeMap::new();
         good.insert(2, 3);
         good.insert(3, 4);
         good.insert(5, 10);
@@ -419,7 +412,7 @@ use nalgebra::{DMatrix, RowDVector};
         let res = fb_factorization(n.clone(), &[2, 3, 5]);
 
         assert_eq!(res, Some(good));
-        let res = fb_factorization(n.clone(), &[2, 3, 5]);
+        let res = fb_factorization(n, &[2, 3, 5]);
 
         assert_eq!(res, None);
     }
@@ -470,7 +463,7 @@ use nalgebra::{DMatrix, RowDVector};
             RowDVector::from_row_slice(&[0, 1, 0, 0, 0, 0, 0, 0, 0, 0]),
             RowDVector::from_row_slice(&[0, 0, 0, 0, 0, 0, 0, 1, 0, 0]),
         ]);
-        let (res, marked) = gaussian_elimination_gf2(m);
+        let (res, _marked) = gaussian_elimination_gf2(m);
         assert_eq!(m2, res);
     }
 }

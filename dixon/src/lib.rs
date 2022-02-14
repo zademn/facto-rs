@@ -35,7 +35,7 @@ pub fn dixon(n: Integer, factor_base: &[u64]) -> Option<(Integer, Integer)> {
         let y2_j = x_j.clone() * &x_j % &n;
 
         // Check if y^2 is b smooth. If it is, add the relation.
-        if let Some(factorization) = fb_factorization(y2_j.clone(), &factor_base) {
+        if let Some(factorization) = fb_factorization(y2_j.clone(), factor_base) {
             relations_x.push(x_j);
             relations_y2.push(y2_j);
             exponents.push(factorization);
@@ -74,7 +74,7 @@ pub fn dixon(n: Integer, factor_base: &[u64]) -> Option<(Integer, Integer)> {
 
     // Compute the gaussian elimination.
     // We only care about the marked columns since they contain the linearly independent vectors
-    let (matrix, marked) = gaussian_elimination_gf2(matrix.clone());
+    let (matrix, marked) = gaussian_elimination_gf2(matrix);
 
     // Get the index of the l.i. and l.d. vectors
     let independent_rows = marked
@@ -158,7 +158,7 @@ pub fn dixon(n: Integer, factor_base: &[u64]) -> Option<(Integer, Integer)> {
             let q = n.clone() / &p;
             println!("p = {}", p);
             println!("q = {}", q);
-            println!("n % p {}", n.clone() % &p);
+            println!("n % p {}", n % &p);
             return Some((p, q));
         }
     }

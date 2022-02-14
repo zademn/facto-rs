@@ -18,7 +18,7 @@ pub fn trial_division(n: Integer) -> Vec<Factor> {
             res.push(Factor::new(i.clone(), c));
         }
         n = n_;
-        i = i + 2;
+        i += 2;
     }
 
     res

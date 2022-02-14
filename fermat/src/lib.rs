@@ -5,7 +5,7 @@ pub fn fermat(n: Integer) -> (Integer, Integer) {
     let mut b2 = a.clone().pow(2) - &n;
     while !b2.is_perfect_square() {
         b2 = b2 + 2 * &a + 1;
-        a = a + 1;
+        a += 1;
     }
     let b = b2.sqrt();
     (a.clone() - &b, a + &b)
