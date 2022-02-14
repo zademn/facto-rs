@@ -218,7 +218,7 @@ pub fn quadratic_sieve(
         i += 1;
     }
     println!("Number of relations found: {}", relations_x.len());
-    println!("Building relations and factorization...");
+    println!("Building relations...");
 
     // Transform exponends into gf2 matrix
     let nrows = exponents.len();
@@ -233,6 +233,7 @@ pub fn quadratic_sieve(
     let matrix = DMatrix::from_row_slice(nrows, ncols, &all_exponents);
     // Compute the gaussian elimination.
     // We only care about the marked columns since they contain the linearly independent vectors
+    println!("Starting gaussian elimination...");
     let (matrix, marked) = gaussian_elimination_gf2(matrix);
 
     // println!("{:?}", marked);
@@ -255,6 +256,7 @@ pub fn quadratic_sieve(
     //3. Factorziation
     // For each dependent row try to form relations and factor.
     println!("Starting to search factorization through dependent rows:");
+    let bar = ProgressBar::new(dependent_rows.len() as u64);
     for dependent_row in dependent_rows {
         // a. Get the column index for each one in our dependent row.
         let ones_idx = matrix
@@ -321,6 +323,7 @@ pub fn quadratic_sieve(
             println!("n % p {}", n % &p);
             return Some((p, q));
         }
+        bar.tick();
     }
     None
 }
@@ -349,7 +352,7 @@ mod tests {
         let q = Integer::from_str_radix("3916272539", 10).unwrap();
         let n = p.clone() * &q; // 13735779066161426579
 
-        let qs_builder = QuadraticSieveBuilder::new(n.clone());
+        let qs_builder = QuadraticSieveBuilder::new(n);
         let qs = qs_builder.build();
         let res = qs.factor();
         assert_eq!(res, Some((p, q)));

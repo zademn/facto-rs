@@ -1,6 +1,7 @@
 use algorithms::big_l;
 use quadratic_sieve::{generate_factor_base_qs, quadratic_sieve};
 use rug::Integer;
+use std::time::Instant;
 
 fn main() {
     let p = Integer::from_str_radix("17771068455963924973", 10).unwrap();
@@ -15,5 +16,8 @@ fn main() {
     println!("factor base len: {}", fb.len());
     // 2760531481
     // 1000000000
+    let start = Instant::now();
     quadratic_sieve(&n, 100000, &fb, 5);
+    let end = start.elapsed();
+    println!("time: {}", end.as_secs_f64());
 }
