@@ -15,5 +15,5 @@ fn main() {
     println!("factor base len: {}", fb.len());
     // 2760531481
     // 1000000000
-    quadratic_sieve(n, 100000, &fb);
+    quadratic_sieve(&n, 100000, &fb, 5);
 }

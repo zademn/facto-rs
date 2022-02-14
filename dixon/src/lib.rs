@@ -1,3 +1,4 @@
+use algorithms::big_l;
 use algorithms::{fb_factorization, gaussian_elimination_gf2};
 use indicatif::ProgressBar;
 use nalgebra::DMatrix;
@@ -5,6 +6,67 @@ use nalgebra::RowDVector;
 use rug::Complete;
 use rug::Integer;
 use std::collections::HashMap;
+use traits::Factorizer;
+
+struct DixonBuilder {
+    n: Integer,
+    bound: Option<u64>,
+    factor_base: Option<Vec<u64>>,
+    extra_relations: Option<usize>,
+}
+
+impl DixonBuilder {
+    pub fn new(n: Integer) -> Self {
+        Self {
+            n,
+            bound: None,
+            factor_base: None,
+            extra_relations: None,
+        }
+    }
+    pub fn bound(mut self, bound: u64) -> DixonBuilder {
+        self.bound = Some(bound);
+        self
+    }
+    pub fn factor_base(mut self, factor_base: Vec<u64>) -> DixonBuilder {
+        self.factor_base = Some(factor_base);
+        self
+    }
+    pub fn extra_relations(mut self, extra_relations: usize) -> DixonBuilder {
+        self.extra_relations = Some(extra_relations);
+        self
+    }
+    pub fn build(self) -> Dixon {
+        let bound = self
+            .bound
+            .unwrap_or(2 * (big_l(self.n.clone()) as f64).sqrt().round() as u64 + 1);
+        let factor_base = self.factor_base.unwrap_or(generate_factor_base(bound));
+        let extra_relations = self.extra_relations.unwrap_or(2);
+        Dixon::new(self.n, bound, factor_base, extra_relations)
+    }
+}
+struct Dixon {
+    n: Integer,
+    bound: u64,
+    factor_base: Vec<u64>,
+    extra_relations: usize,
+}
+impl Dixon {
+    pub fn new(n: Integer, bound: u64, factor_base: Vec<u64>, extra_relations: usize) -> Self {
+        Self {
+            n,
+            bound,
+            factor_base,
+            extra_relations,
+        }
+    }
+}
+
+impl Factorizer for Dixon {
+    fn factor(&self) -> Option<(Integer, Integer)> {
+        dixon(&self.n, &self.factor_base, self.extra_relations)
+    }
+}
 
 pub fn generate_factor_base(bound: u64) -> Vec<u64> {
     let mut p = Integer::from(2u32);
@@ -18,9 +80,14 @@ pub fn generate_factor_base(bound: u64) -> Vec<u64> {
 
 /// Algorithm from here:
 ///  https://dspace.cvut.cz/bitstream/handle/10467/94585/F8-DP-2021-Vladyka-Ondrej-DP_Vladyka_Ondrej_2021.pdf?sequence=-1&isAllowed=y
-pub fn dixon(n: Integer, factor_base: &[u64]) -> Option<(Integer, Integer)> {
+pub fn dixon(
+    n: &Integer,
+    factor_base: &[u64],
+    extra_relations: usize,
+) -> Option<(Integer, Integer)> {
+    let n = n.clone();
     // number of relations we want
-    let k = 2 * factor_base.len();
+    let k = factor_base.len() + extra_relations;
     // Relation and exponents arrays
     let mut relations_x = Vec::with_capacity(k);
     let mut relations_y2 = Vec::with_capacity(k);
@@ -178,7 +245,18 @@ mod tests {
 
         let bound = 2 * (big_l(n.clone()) as f64).sqrt().round() as u64 + 1;
         let fb = generate_factor_base(bound);
-        let res = dixon(n, &fb);
+        let res = dixon(&n, &fb, 10);
+        assert_eq!(res, Some((p, q)));
+    }
+    #[test]
+    fn test_dixon_structs() {
+        let p = Integer::from_str_radix("42509", 10).unwrap();
+        let q = Integer::from_str_radix("63299", 10).unwrap();
+        let n = p.clone() * &q;
+
+        let dixon_builder = DixonBuilder::new(n);
+        let dixon_struct = dixon_builder.build();
+        let res = dixon_struct.factor();
         assert_eq!(res, Some((p, q)));
     }
 }

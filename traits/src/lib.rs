@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use lazy_static::lazy_static;
 use rug::{ops::Pow, Integer};
+
+///
 #[derive(Debug, Clone)]
 pub struct Factor {
     prime: Integer,
@@ -15,6 +17,18 @@ impl Factor {
         let p = self.prime.clone();
         p.pow(self.exp)
     }
+    pub fn n_mod(&self, n: &Integer) -> Integer {
+        let p = self.prime.clone();
+        p.pow_mod(&Integer::from(self.exp), n).unwrap()
+    }
+}
+
+pub trait Factorizer {
+    fn factor(&self) -> Option<(Integer, Integer)>;
+}
+
+pub trait FullFactorizer {
+    fn factor_full(&self) -> Vec<Factor>;
 }
 
 pub static N_PRECOMPUTED_PRIMES: usize = 10000;

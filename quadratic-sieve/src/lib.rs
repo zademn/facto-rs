@@ -1,10 +1,98 @@
+use algorithms::big_l;
 use algorithms::gaussian_elimination_gf2;
 use algorithms::{fb_factorization, tonelli_shanks};
 use indicatif::ProgressBar;
 use nalgebra::DMatrix;
 use rug::{ops::Pow, Complete, Integer};
 use std::{collections::HashMap, vec};
-use types::LOG_PRIMES;
+use traits::Factorizer;
+use traits::LOG_PRIMES;
+
+struct QuadraticSieveBuilder {
+    n: Integer,
+    bound: Option<u64>,
+    sieve_size: Option<usize>,
+    factor_base: Option<Vec<u64>>,
+    extra_relations: Option<usize>,
+}
+
+impl QuadraticSieveBuilder {
+    pub fn new(n: Integer) -> Self {
+        Self {
+            n,
+            bound: None,
+            factor_base: None,
+            sieve_size: None,
+            extra_relations: None,
+        }
+    }
+    pub fn bound(mut self, bound: u64) -> QuadraticSieveBuilder {
+        self.bound = Some(bound);
+        self
+    }
+    pub fn sieve_size(mut self, sieve_size: usize) -> QuadraticSieveBuilder {
+        self.sieve_size = Some(sieve_size);
+        self
+    }
+    pub fn factor_base(mut self, factor_base: Vec<u64>) -> QuadraticSieveBuilder {
+        self.factor_base = Some(factor_base);
+        self
+    }
+    pub fn extra_relations(mut self, extra_relations: usize) -> QuadraticSieveBuilder {
+        self.extra_relations = Some(extra_relations);
+        self
+    }
+    pub fn build(self) -> QuadraticSieve {
+        let bound = self
+            .bound
+            .unwrap_or(2 * (big_l(self.n.clone()) as f64).sqrt().round() as u64 + 1);
+        let factor_base = self
+            .factor_base
+            .unwrap_or(generate_factor_base_qs(&self.n, bound));
+        let extra_relations = self.extra_relations.unwrap_or(5);
+        let sieve_size = self.sieve_size.unwrap_or(if self.n < 10000u32 {
+            self.n.to_usize().unwrap() + 1
+        } else {
+            10000
+        });
+        QuadraticSieve::new(self.n, bound, sieve_size, factor_base, extra_relations)
+    }
+}
+struct QuadraticSieve {
+    n: Integer,
+    bound: u64,
+    factor_base: Vec<u64>,
+    sieve_size: usize,
+    extra_relations: usize,
+}
+impl QuadraticSieve {
+    pub fn new(
+        n: Integer,
+        bound: u64,
+        sieve_size: usize,
+        factor_base: Vec<u64>,
+        extra_relations: usize,
+    ) -> Self {
+        Self {
+            n,
+            bound,
+            sieve_size,
+            factor_base,
+            extra_relations,
+        }
+    }
+}
+
+impl Factorizer for QuadraticSieve {
+    fn factor(&self) -> Option<(Integer, Integer)> {
+        quadratic_sieve(
+            &self.n,
+            self.sieve_size,
+            &self.factor_base,
+            self.extra_relations,
+        )
+    }
+}
 
 pub fn generate_factor_base_qs(n: &Integer, bound: u64) -> Vec<u64> {
     let mut p = Integer::from(2u32);
@@ -38,9 +126,14 @@ fn find_roots(n: &Integer, factor_base: &[u64]) -> HashMap<u64, (u64, u64)> {
 /// n =  integer we want to factor
 /// s = size of the sieve interval
 /// fb = factor base
-pub fn quadratic_sieve(n: Integer, s: usize, factor_base: &[u64]) -> Option<(Integer, Integer)> {
-    //let k = 2 * factor_base.len(); // minimum of relations we want
-    let k = factor_base.len() + 10; // minimum of relations we want
+pub fn quadratic_sieve(
+    n: &Integer,
+    s: usize,
+    factor_base: &[u64],
+    extra_relations: usize,
+) -> Option<(Integer, Integer)> {
+    let n = n.clone();
+    let k = factor_base.len() + extra_relations; // minimum of relations we want
 
     //let mut relations = Hash
     let max_factor = *factor_base.iter().max().unwrap();
@@ -246,7 +339,19 @@ mod tests {
         let bound = 2 * (big_l(n.clone()) as f64).sqrt().round() as u64 + 1;
         let fb = generate_factor_base_qs(&n, bound);
         let s = 100000;
-        let res = quadratic_sieve(n, s, &fb);
+        let res = quadratic_sieve(&n, s, &fb, 5);
+        assert_eq!(res, Some((p, q)));
+    }
+
+    #[test]
+    fn test_quadratic_sieve_structs() {
+        let p = Integer::from_str_radix("3507360361", 10).unwrap();
+        let q = Integer::from_str_radix("3916272539", 10).unwrap();
+        let n = p.clone() * &q; // 13735779066161426579
+
+        let qs_builder = QuadraticSieveBuilder::new(n.clone());
+        let qs = qs_builder.build();
+        let res = qs.factor();
         assert_eq!(res, Some((p, q)));
     }
 }

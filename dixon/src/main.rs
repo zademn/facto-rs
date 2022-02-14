@@ -15,5 +15,5 @@ fn main() {
     // println!("factor base: {:?}", fb);
     println!("factor base len: {}", fb.len());
 
-    dixon(n, &fb);
+    dixon(&n, &fb, 5);
 }
