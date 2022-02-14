@@ -10,3 +10,4 @@ rug = "1.15.0"
 types = { path = "../types" }
 algorithms = { path = "../algorithms" }
 nalgebra = "0.30.1"
+indicatif = "0.16.2"

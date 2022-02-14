@@ -1,7 +1,6 @@
-use std::collections::HashMap;
-
 use nalgebra::{DMatrix, DVector};
 use rug::{Complete, Integer};
+use std::collections::BTreeMap;
 
 /// xor 2 arrays of u8 against each other.
 fn xor(a: &[u8], b: &[u8]) -> Vec<u8> {
@@ -87,8 +86,8 @@ pub fn remove_factor(mut n: u64, factor: u64) -> (u64, u64) {
 
 /// Computes the prime factorization of an integer `n` given a factor base by repeated division
 /// If at the end `n!=1` then the factor base is toos small and the function will return None
-pub fn fb_factorization(mut n: Integer, fb: &[u64]) -> Option<HashMap<u64, u32>> {
-    let mut res = HashMap::new();
+pub fn fb_factorization(mut n: Integer, fb: &[u64]) -> Option<BTreeMap<u64, u32>> {
+    let mut res = BTreeMap::new();
     for &p in fb {
         let (r, c) = n.remove_factor(&Integer::from(p));
         res.insert(p, c);
@@ -137,7 +136,8 @@ pub fn tonelli_shanks(a: Integer, p: u64) -> u64 {
     let a = (a % &p).to_u64().unwrap();
     assert_eq!(jacobi(a, p), 1);
     // Check easy cases
-    let r = p & 8;
+    //let r = p % 8;
+    let r = p & 0b111;
     if r == 3 || r == 7 {
         let x = pow_mod(a, (p + 1) / 4, p);
         return x;
@@ -146,7 +146,8 @@ pub fn tonelli_shanks(a: Integer, p: u64) -> u64 {
         let mut x = pow_mod(a, (p + 3) / 8, p);
         let c = mul_mod(x, x, p);
         if c != a {
-            x = mul_mod(x, 1 << ((p - 1) / 4), p)
+            //x = mul_mod(x, 1 << (p - 1) / 4, p); // <- this breaks with overflow
+            x = mul_mod(x, pow_mod(2, (p - 1) / 4, p), p)
         }
         return x;
     }
@@ -160,11 +161,15 @@ pub fn tonelli_shanks(a: Integer, p: u64) -> u64 {
     // Write p - 1 = 2^s * t with t odd.
     let (t, s) = remove_factor(p - 1, 2);
 
+    // TODO: REMOVE
+    // assert_eq!((1 << s) * t, p - 1, "failed at p-1 = 2^s * t");
+    // assert_eq!(t & 1, 1, "t is not odd");
+
     let big_a = pow_mod(a, t, p);
     let big_d = pow_mod(d, t, p);
     let mut m = 0;
     for i in 0..s {
-        if pow_mod(mul_mod(big_a, pow_mod(big_d, m, p), p), 1 << (s - 1 - i), p) + 1 == 0 % p {
+        if (pow_mod(mul_mod(big_a, pow_mod(big_d, m, p), p), 1 << (s - 1 - i), p) + 1) % p == 0 {
             m = m + (1 << i);
         }
     }
@@ -263,7 +268,7 @@ pub fn gaussian_elimination_gf2(mut m: DMatrix<u8>) -> (DMatrix<u8>, Vec<bool>) 
 }
 
 ///2^sqrt(log2(N) * log2(log2(N)))
-pub fn L(n: Integer) -> u64 {
+pub fn big_l(n: Integer) -> u64 {
     let ln_n = n.significant_bits();
     let ln_ln_n = Integer::from(ln_n).significant_bits();
     let e = (Integer::from(ln_n) * ln_ln_n).sqrt().to_u32().unwrap();
@@ -271,9 +276,9 @@ pub fn L(n: Integer) -> u64 {
 }
 #[cfg(test)]
 mod tests {
-    use std::num::IntErrorKind;
 
-    use nalgebra::{DMatrix, RowDVector};
+    use std::collections::HashMap;
+use nalgebra::{DMatrix, RowDVector};
 
     use super::*;
 
@@ -351,9 +356,56 @@ mod tests {
 
     #[test]
     fn test_tonelli_shanks() {
-        let a = Integer::from(44u32);
-        let p = 83;
-        assert_eq!(tonelli_shanks(a, p), 25);
+        let p_list = [
+            7860900828999768299u64,
+            5851182244098666403,
+            7067865364533311003,
+            8457732916268889157,
+            8875167686690254771,
+            8676936256717783331,
+            7178367167530247203,
+            6162209428549841441,
+            8749135268052235409,
+            4626230431388263283,
+            317,
+        ];
+        let x_list = [
+            4303908648961347169u64,
+            367209630034478917,
+            6091680243162434146,
+            6577184477657482552,
+            4124478228890067424,
+            6387721184836005477,
+            1554736275162610265,
+            5866180766885516437,
+            1828885091441526311,
+            2672888147616999768,
+            88,
+        ];
+        let a_list = [
+            1878158371269232519u64,
+            2836029148436770990,
+            745486757435774679,
+            7579323184114679222,
+            1760301437636227390,
+            3861061999335076489,
+            5899114290285327131,
+            5718543755122817265,
+            3429480728171324177,
+            2746241566352294916,
+            136,
+        ];
+
+        for ((&x, a), p) in x_list.iter().zip(a_list).zip(p_list) {
+            assert_eq!(pow_mod(x, 2, p), a, "failed pow_mod");
+        }
+
+        for ((&x, a), p) in x_list.iter().zip(a_list).zip(p_list) {
+            let root = tonelli_shanks(Integer::from(a), p);
+            if !(root == x || p - root == x) {
+                assert!(false, "tonelli: {root}, {}, {x}, {a}, {p}", p - root);
+            }
+        }
     }
 
     #[test]
@@ -389,8 +441,36 @@ mod tests {
             RowDVector::from_row_slice(&[0, 0, 1, 0]),
             RowDVector::from_row_slice(&[1, 0, 0, 1]),
         ]);
-        let (res, marks) = gaussian_elimination_gf2(m);
-        assert_eq!(marks, [true, true, true, true, false]);
+        let (res, marked) = gaussian_elimination_gf2(m);
+        assert_eq!(marked, [true, true, true, true, false]);
+        assert_eq!(m2, res);
+        let m = DMatrix::from_rows(&[
+            RowDVector::from_row_slice(&[0, 0, 0, 0, 1, 1, 1, 1, 0, 0]),
+            RowDVector::from_row_slice(&[1, 0, 0, 0, 0, 1, 0, 1, 0, 0]),
+            RowDVector::from_row_slice(&[0, 1, 1, 0, 1, 1, 0, 0, 0, 1]),
+            RowDVector::from_row_slice(&[0, 1, 0, 1, 0, 0, 1, 0, 1, 1]),
+            RowDVector::from_row_slice(&[0, 0, 0, 0, 0, 1, 0, 1, 1, 1]),
+            RowDVector::from_row_slice(&[0, 0, 0, 1, 1, 1, 0, 1, 1, 1]),
+            RowDVector::from_row_slice(&[0, 1, 0, 1, 1, 1, 0, 1, 0, 1]),
+            RowDVector::from_row_slice(&[0, 1, 1, 0, 1, 0, 1, 0, 0, 1]),
+            RowDVector::from_row_slice(&[0, 0, 1, 0, 1, 1, 1, 1, 0, 1]),
+            RowDVector::from_row_slice(&[0, 1, 1, 0, 1, 1, 0, 0, 0, 1]),
+            RowDVector::from_row_slice(&[1, 0, 0, 1, 1, 0, 1, 0, 1, 1]),
+        ]);
+        let m2 = DMatrix::from_rows(&[
+            RowDVector::from_row_slice(&[0, 0, 0, 0, 1, 0, 0, 0, 0, 0]),
+            RowDVector::from_row_slice(&[1, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+            RowDVector::from_row_slice(&[0, 1, 0, 0, 0, 0, 0, 0, 0, 0]),
+            RowDVector::from_row_slice(&[0, 0, 1, 0, 0, 0, 0, 0, 0, 0]),
+            RowDVector::from_row_slice(&[0, 0, 0, 0, 0, 1, 0, 0, 0, 0]),
+            RowDVector::from_row_slice(&[0, 0, 0, 1, 0, 0, 0, 0, 0, 0]),
+            RowDVector::from_row_slice(&[0, 0, 0, 0, 0, 0, 0, 0, 1, 0]),
+            RowDVector::from_row_slice(&[0, 0, 0, 0, 0, 0, 1, 0, 0, 0]),
+            RowDVector::from_row_slice(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 1]),
+            RowDVector::from_row_slice(&[0, 1, 0, 0, 0, 0, 0, 0, 0, 0]),
+            RowDVector::from_row_slice(&[0, 0, 0, 0, 0, 0, 0, 1, 0, 0]),
+        ]);
+        let (res, marked) = gaussian_elimination_gf2(m);
         assert_eq!(m2, res);
     }
 }

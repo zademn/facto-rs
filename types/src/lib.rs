@@ -17,13 +17,14 @@ impl Factor {
     }
 }
 
+pub static N_PRECOMPUTED_PRIMES: usize = 10000;
 /// First primes and their logarithms
 lazy_static! {
     #[derive(Debug)]
     pub static ref PRIMES: Vec<u64> = {
-        let mut t = Vec::with_capacity(1000);
+        let mut t = Vec::with_capacity(N_PRECOMPUTED_PRIMES);
         let mut i = Integer::from(2u32);
-        for _ in 0..1000 {
+        for _ in 0..N_PRECOMPUTED_PRIMES {
             t.push(i.to_u64().unwrap());
             i = i.next_prime()
         }
