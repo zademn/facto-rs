@@ -49,13 +49,4 @@ mod tests {
         let f = Factor::new(Integer::from(3), 4);
         assert_eq!(f.n(), 81);
     }
-
-    #[test]
-    fn test_primes() {
-        // for p in LOG_PRIMES.iter() {
-        //     dbg!(p);
-        // }
-
-        assert_eq!(PRIMES.len(), 1000);
-    }
 }

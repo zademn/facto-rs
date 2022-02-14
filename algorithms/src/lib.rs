@@ -108,7 +108,7 @@ pub fn jacobi(mut a: u64, mut m: u64) -> i64 {
     while a != 0 {
         while (a & 1) == 0 {
             // even
-            a %= 2;
+            a /= 2;
             let r = m % 8;
             if r == 3 || r == 5 {
                 t = -t;
@@ -410,10 +410,8 @@ mod tests {
         good.insert(5, 10);
         let n = Integer::from(n);
         let res = fb_factorization(n.clone(), &[2, 3, 5]);
-
         assert_eq!(res, Some(good));
-        let res = fb_factorization(n, &[2, 3, 5]);
-
+        let res = fb_factorization(n, &[2, 5]);
         assert_eq!(res, None);
     }
 
