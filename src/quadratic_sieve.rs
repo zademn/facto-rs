@@ -39,9 +39,10 @@ use std::{collections::HashMap, vec};
 pub struct QuadraticSieveBuilder {
     n: Integer,
     bound: Option<u64>,
-    sieve_size: Option<usize>,
+    sieve_size: usize,
     factor_base: Option<Vec<u64>>,
-    extra_relations: Option<usize>,
+    extra_relations: usize,
+    verbose: bool,
 }
 
 impl QuadraticSieveBuilder {
@@ -52,28 +53,33 @@ impl QuadraticSieveBuilder {
             n,
             bound: None,
             factor_base: None,
-            sieve_size: None,
-            extra_relations: None,
+            sieve_size: 10000,
+            extra_relations: 5,
+            verbose: true,
         }
     }
     /// Manually set the bound.
-    pub fn bound(mut self, bound: u64) -> QuadraticSieveBuilder {
+    pub fn bound(mut self, bound: u64) -> Self {
         self.bound = Some(bound);
         self
     }
     /// Manually set the sieve size
-    pub fn sieve_size(mut self, sieve_size: usize) -> QuadraticSieveBuilder {
-        self.sieve_size = Some(sieve_size);
+    pub fn sieve_size(mut self, sieve_size: usize) -> Self {
+        self.sieve_size = sieve_size;
         self
     }
     /// Manually set the factor_base.
-    pub fn factor_base(mut self, factor_base: Vec<u64>) -> QuadraticSieveBuilder {
+    pub fn factor_base(mut self, factor_base: Vec<u64>) -> Self {
         self.factor_base = Some(factor_base);
         self
     }
-    /// Manually set the number of extra_relations to search.
-    pub fn extra_relations(mut self, extra_relations: usize) -> QuadraticSieveBuilder {
-        self.extra_relations = Some(extra_relations);
+    pub fn extra_relations(mut self, extra_relations: usize) -> Self {
+        self.extra_relations = extra_relations;
+        self
+    }
+    /// Manually set verbosity.
+    pub fn verbose(mut self, verbose: bool) -> Self {
+        self.verbose = verbose;
         self
     }
     /// Buld a [QuadraticSieve] using the provided configuration.
@@ -89,13 +95,19 @@ impl QuadraticSieveBuilder {
         let factor_base = self
             .factor_base
             .unwrap_or(generate_factor_base_qs(&self.n, bound));
-        let extra_relations = self.extra_relations.unwrap_or(5);
-        let sieve_size = self.sieve_size.unwrap_or(if self.n < 10000u32 {
+        let sieve_size = if self.n < 10000u32 {
             self.n.to_usize().unwrap() + 1
         } else {
-            10000
-        });
-        QuadraticSieve::new(self.n, bound, sieve_size, factor_base, extra_relations)
+            self.sieve_size
+        };
+        QuadraticSieve::new(
+            self.n,
+            bound,
+            sieve_size,
+            factor_base,
+            self.extra_relations,
+            self.verbose,
+        )
     }
 }
 
@@ -122,6 +134,7 @@ pub struct QuadraticSieve {
     factor_base: Vec<u64>,
     sieve_size: usize,
     extra_relations: usize,
+    verbose: bool,
 }
 
 impl QuadraticSieve {
@@ -132,6 +145,7 @@ impl QuadraticSieve {
         sieve_size: usize,
         factor_base: Vec<u64>,
         extra_relations: usize,
+        verbose: bool,
     ) -> Self {
         Self {
             n,
@@ -139,6 +153,7 @@ impl QuadraticSieve {
             sieve_size,
             factor_base,
             extra_relations,
+            verbose,
         }
     }
 }
@@ -150,6 +165,7 @@ impl Factorizer for QuadraticSieve {
             self.sieve_size,
             &self.factor_base,
             self.extra_relations,
+            self.verbose,
         )
     }
 }
@@ -163,8 +179,8 @@ impl Factorizer for QuadraticSieve {
 /// assert_eq!(factor_base, vec![2, 17, 23, 29]);
 /// ```
 pub fn generate_factor_base_qs(n: &Integer, bound: u64) -> Vec<u64> {
-    let mut p = Integer::from(2u32);
     let mut fb = vec![2];
+    let mut p = Integer::from(3u32);
     while p < bound {
         if n.jacobi(&p) == 1 {
             fb.push(p.to_u64().unwrap());
@@ -208,6 +224,7 @@ pub fn quadratic_sieve(
     s: usize,
     factor_base: &[u64],
     extra_relations: usize,
+    verbose: bool,
 ) -> Option<(Integer, Integer)> {
     let n = n.clone();
     let k = factor_base.len() + extra_relations; // minimum of relations we want
@@ -217,10 +234,14 @@ pub fn quadratic_sieve(
 
     // 1. Initialization
     // Find roots x_p^2 ≡ n (mod p)
-    println!("Searching roots...");
+    if verbose {
+        println!("Searching roots...");
+    }
     let mut roots: HashMap<u64, (u64, u64)> = find_roots(&n, factor_base);
     roots.insert(2, (1, 1)); // add 2 to factor base
-    println!("Roots computed");
+    if verbose {
+        println!("Roots computed");
+    }
 
     // 2. Sieving
     // let mut relations = HashMap::new();
@@ -231,9 +252,12 @@ pub fn quadratic_sieve(
 
     // interval count
 
-    println!("Starting the sieving process");
+    let mut bar = None;
+    if verbose {
+        println!("Starting the sieving process");
+        bar = Some(ProgressBar::new(k as u64));
+    }
     let mut i = 0;
-    let bar = ProgressBar::new(k as u64);
     loop {
         // Set interval bounds. We move in steps of `s`
         let start = n.clone().sqrt() + 1u32 + i * s as u32;
@@ -285,17 +309,23 @@ pub fn quadratic_sieve(
                 }
             }
         }
-        bar.set_position(relations_x.len() as u64);
-        bar.set_message(format!("Sieving interval: [{}, {}]", start, end));
+        if let Some(bar) = bar.as_mut() {
+            bar.set_position(relations_x.len() as u64);
+            bar.set_message(format!("Sieving interval: [{}, {}]", start, end));
+        }
 
         if relations_x.len() > k {
-            bar.finish();
+            if let Some(bar) = bar {
+                bar.finish();
+            }
             break;
         }
         i += 1;
     }
-    println!("Number of relations found: {}", relations_x.len());
-    println!("Building relations...");
+    if verbose {
+        println!("Number of relations found: {}", relations_x.len());
+        println!("Building relations...");
+    }
 
     // Transform exponends into gf2 matrix
     let nrows = exponents.len();
@@ -310,7 +340,9 @@ pub fn quadratic_sieve(
     let matrix = DMatrix::from_row_slice(nrows, ncols, &all_exponents);
     // Compute the gaussian elimination.
     // We only care about the marked columns since they contain the linearly independent vectors
-    println!("Starting gaussian elimination...");
+    if verbose {
+        println!("Starting gaussian elimination...");
+    }
     let (matrix, marked) = gaussian_elimination_gf2(matrix);
 
     // println!("{:?}", marked);
@@ -332,7 +364,9 @@ pub fn quadratic_sieve(
 
     //3. Factorziation
     // For each dependent row try to form relations and factor.
-    println!("Starting to search factorization through dependent rows:");
+    if verbose {
+        println!("Starting to search factorization through dependent rows:");
+    }
     let bar = ProgressBar::new(dependent_rows.len() as u64);
     for dependent_row in dependent_rows {
         // a. Get the column index for each one in our dependent row.
@@ -395,9 +429,11 @@ pub fn quadratic_sieve(
         // check if we found something
         if p != 1u32 && p != n {
             let q = n.clone() / &p;
-            println!("p = {}", p);
-            println!("q = {}", q);
-            println!("n % p {}", n % &p);
+            if verbose {
+                println!("p = {}", p);
+                println!("q = {}", q);
+                println!("n % p {}", n % &p);
+            }
             if p < q {
                 return Some((p, q));
             } else {
@@ -423,7 +459,7 @@ mod tests {
         let bound = 2 * (big_l(n.clone()) as f64).sqrt().round() as u64 + 1;
         let fb = generate_factor_base_qs(&n, bound);
         let s = 100000;
-        let res = quadratic_sieve(&n, s, &fb, 5);
+        let res = quadratic_sieve(&n, s, &fb, 5, false);
         assert_eq!(res, Some((p, q)));
     }
 

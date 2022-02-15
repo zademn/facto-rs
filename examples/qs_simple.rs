@@ -8,7 +8,7 @@ fn main() {
     let extra_relations = 2;
     let sieve_size = 1000;
     let bound = 30;
-    let qs = QuadraticSieve::new(n, bound, sieve_size, factor_base, extra_relations);
+    let qs = QuadraticSieve::new(n, bound, sieve_size, factor_base, extra_relations, true);
     let res = qs.factor();
     assert_eq!(res, Some((Integer::from(103u32), Integer::from(149u32))));
 }

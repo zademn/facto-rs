@@ -40,7 +40,7 @@ pub trait FullFactorizer {
 }
 
 /// Number of precomputed primes and their log2's.
-pub static N_PRECOMPUTED_PRIMES: usize = 10000;
+pub static N_PRECOMPUTED_PRIMES: usize = 200000;
 lazy_static! {
     #[derive(Debug)]
     pub static ref PRIMES: Vec<u64> = {
