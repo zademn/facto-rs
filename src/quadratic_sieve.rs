@@ -5,7 +5,7 @@ use nalgebra::DMatrix;
 use rug::{ops::Pow, Complete, Integer};
 use std::{collections::HashMap, vec};
 
-struct QuadraticSieveBuilder {
+pub struct QuadraticSieveBuilder {
     n: Integer,
     bound: Option<u64>,
     sieve_size: Option<usize>,
@@ -55,7 +55,7 @@ impl QuadraticSieveBuilder {
         QuadraticSieve::new(self.n, bound, sieve_size, factor_base, extra_relations)
     }
 }
-struct QuadraticSieve {
+pub struct QuadraticSieve {
     n: Integer,
     bound: u64,
     factor_base: Vec<u64>,

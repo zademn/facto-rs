@@ -7,7 +7,9 @@ fn xor(a: &[u8], b: &[u8]) -> Vec<u8> {
     a.iter().zip(b).map(|(aa, bb)| aa ^ bb).collect()
 }
 
-/// From here
+/// Modular multiplication in u64 without overflow.
+/// If we do the usual a * b % p then we encounter the possibility of overflow. 
+/// Implementation taken rom here:
 /// https://stackoverflow.com/questions/45918104/how-to-do-arithmetic-modulo-another-number-without-overflow
 pub fn mul_mod(mut x: u64, mut y: u64, n: u64) -> u64 {
     let msb = 0x8000_0000_0000_0000;
@@ -74,7 +76,7 @@ pub fn pow_mod(a: u64, e: u64, n: u64) -> u64 {
 }
 
 /// Removes the `factor` from a number `n` by repeated division
-/// Returns the remainder and the count.
+/// and returns the remainder and the count of the factor.
 pub fn remove_factor(mut n: u64, factor: u64) -> (u64, u64) {
     let mut count = 0;
     while n % factor == 0 {
@@ -108,14 +110,15 @@ pub fn jacobi(mut a: u64, mut m: u64) -> i64 {
     while a != 0 {
         while (a & 1) == 0 {
             // even
-            a /= 2;
-            let r = m % 8;
+            a >>= 1; //a /= 2;
+            let r = m & 0b111; // m % 8
             if r == 3 || r == 5 {
                 t = -t;
             }
         }
         std::mem::swap(&mut a, &mut m);
-        if a % 4 == 3 && m % 4 == 3 {
+        // a % 4
+        if a & 0b11 == 3 && m & 0b11 == 3 {
             t = -t;
         }
         a %= m;
