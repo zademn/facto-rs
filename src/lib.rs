@@ -3,7 +3,7 @@
 // # facto_rs
 //! **facto_rs** crate that provides different methods of factorization.
 //! [Rug](https://crates.io/crates/rug) is used to handle big integer operations.
-//! Some algorithms such as [Dixon] and [QuadraticSieve] have a linear algebra step. For that  algorithms [nalgebra](https://docs.rs/nalgebra/latest/nalgebra/) is used to handle the operations.
+//! Some algorithms such as [Dixon] and [QuadraticSieve] have a linear algebra step. For these  algorithms [nalgebra](https://docs.rs/nalgebra/latest/nalgebra/) is used to handle the operations.
 //! 
 pub mod algorithms;
 pub mod dixon;
