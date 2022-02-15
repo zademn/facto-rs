@@ -1,11 +1,26 @@
-use rug::Integer;
-use crate::traits::{Factor, Factorizer, FullFactorizer};
+//! Module that provides the trial division factorizzation method and additional functionalities.
 
+use crate::traits::{Factor, Factorizer, FullFactorizer};
+use rug::Integer;
+
+/// Structure to handle TrialDivision's factorization.
+/// When factoring, it calls the [trial_division] function internally.
+/// # Example
+/// ```rust
+/// # use facto_rs::trial_division::TrialDivision;
+/// # use facto_rs::traits::Factorizer;
+/// # use rug::Integer;
+/// let n = Integer::from(5959u32);
+/// let td = TrialDivision::new(n);
+/// let res = td.factor();
+/// assert_eq!(res, Some((Integer::from(59u32), Integer::from(101u32))));
+/// ```
 pub struct TrialDivision {
     n: Integer,
 }
 impl TrialDivision {
-    fn new(n: Integer) -> Self {
+    /// Creates a new [Fermat] struct.
+    pub fn new(n: Integer) -> Self {
         Self { n }
     }
 }
@@ -32,8 +47,15 @@ impl FullFactorizer for TrialDivision {
     }
 }
 
-/// Trial division function.
-fn trial_division(n: &Integer) -> Vec<Factor> {
+/// Trial division factorization.
+/// # Example
+/// ```no_run
+/// # use facto_rs::trial_division::trial_division;
+/// # use rug::Integer;
+/// let n = Integer::from(5959u32);
+/// let res = trial_division(&n);
+/// ```
+pub fn trial_division(n: &Integer) -> Vec<Factor> {
     let n = n.clone();
     let mut res: Vec<Factor> = vec![];
     // Remove factors of 2 if they exist

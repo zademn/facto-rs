@@ -1,3 +1,5 @@
+//! Module that provides the quadratic sieve factorizzation method and additional functionalities.
+
 use crate::algorithms::{big_l, fb_factorization, gaussian_elimination_gf2, tonelli_shanks};
 use crate::traits::{Factorizer, LOG_PRIMES};
 use indicatif::ProgressBar;
@@ -5,6 +7,35 @@ use nalgebra::DMatrix;
 use rug::{ops::Pow, Complete, Integer};
 use std::{collections::HashMap, vec};
 
+/// A builder used to configure a [QuadraticSieve] struct
+/// # Example
+/// To use with computed defaults provide a Rug Integer in the constructor and call `.build()`:
+/// ```rust
+/// # use facto_rs::quadratic_sieve::{QuadraticSieveBuilder, QuadraticSieve};
+/// # use facto_rs::traits::Factorizer;
+/// # use rug::Integer;
+/// let n = Integer::from(15347u32);
+/// let builder = QuadraticSieveBuilder::new(n).bound(30);
+/// let qs: QuadraticSieve = builder.build();
+/// let res = qs.factor();
+/// assert_eq!(res, Some((Integer::from(103u32), Integer::from(149u32))));
+/// ```
+///
+/// Otherwise you can configure each parameter by calling a function with the name of the parameter:
+/// ```rust
+/// # use facto_rs::quadratic_sieve::{QuadraticSieveBuilder, QuadraticSieve};
+/// # use facto_rs::traits::Factorizer;
+/// # use rug::Integer;
+/// let n = Integer::from(15347u32);
+/// let builder = QuadraticSieveBuilder::new(n)
+///     .bound(30)
+///     .factor_base(vec![2, 17, 23, 29])
+///     .extra_relations(1)
+///     .sieve_size(1000);
+/// let qs: QuadraticSieve = builder.build();
+/// let res = qs.factor();
+/// assert_eq!(res, Some((Integer::from(103u32), Integer::from(149u32))));
+/// ```
 pub struct QuadraticSieveBuilder {
     n: Integer,
     bound: Option<u64>,
@@ -14,6 +45,8 @@ pub struct QuadraticSieveBuilder {
 }
 
 impl QuadraticSieveBuilder {
+    /// Creates a new [QuadraticSieveBuilder]. You must provide an integer because it's used in `build` to compute defaults.
+
     pub fn new(n: Integer) -> Self {
         Self {
             n,
@@ -23,22 +56,32 @@ impl QuadraticSieveBuilder {
             extra_relations: None,
         }
     }
+    /// Manually set the bound.
     pub fn bound(mut self, bound: u64) -> QuadraticSieveBuilder {
         self.bound = Some(bound);
         self
     }
+    /// Manually set the sieve size
     pub fn sieve_size(mut self, sieve_size: usize) -> QuadraticSieveBuilder {
         self.sieve_size = Some(sieve_size);
         self
     }
+    /// Manually set the factor_base.
     pub fn factor_base(mut self, factor_base: Vec<u64>) -> QuadraticSieveBuilder {
         self.factor_base = Some(factor_base);
         self
     }
+    /// Manually set the number of extra_relations to search.
     pub fn extra_relations(mut self, extra_relations: usize) -> QuadraticSieveBuilder {
         self.extra_relations = Some(extra_relations);
         self
     }
+    /// Buld a [QuadraticSieve] using the provided configuration.
+    /// The default configs:
+    /// - computes the bound as sqrt(L(n)) where L(n) = exp(sqrt(ln(n) * ln(ln(n))))
+    /// - creates the factor base using all primes up to `bound` where n has a square root mod p
+    /// - sieve size: 10000 if 10000 > n else n
+    /// - extra_relations = 5
     pub fn build(self) -> QuadraticSieve {
         let bound = self
             .bound
@@ -55,6 +98,24 @@ impl QuadraticSieveBuilder {
         QuadraticSieve::new(self.n, bound, sieve_size, factor_base, extra_relations)
     }
 }
+
+/// A builder used to configure a [QuadraticSieve] struct. After creating a QuadraticSieve structure call `.factor()` to start factorizing the number.
+/// When factoring, it calls the [quadratic_sieve] function internally.
+/// # Example
+/// To use with computed defaults provide a Rug Integer in the constructor and call `.build()`:
+/// ```rust
+/// # use facto_rs::quadratic_sieve::QuadraticSieve;
+/// # use facto_rs::traits::Factorizer;
+/// # use rug::Integer;
+/// let n = Integer::from(15347u32);
+/// let factor_base = vec![2, 17, 23, 29];
+/// let extra_relations = 2;
+/// let sieve_size = 1000;
+/// let bound = 30;
+/// let qs = QuadraticSieve::new(n, bound, sieve_size, factor_base, extra_relations);
+/// let res = qs.factor();
+/// assert_eq!(res, Some((Integer::from(103u32), Integer::from(149u32))));
+/// ```
 pub struct QuadraticSieve {
     n: Integer,
     bound: u64,
@@ -62,7 +123,9 @@ pub struct QuadraticSieve {
     sieve_size: usize,
     extra_relations: usize,
 }
+
 impl QuadraticSieve {
+    /// Creates a new [QuadraticSieve] struct.
     pub fn new(
         n: Integer,
         bound: u64,
@@ -91,11 +154,19 @@ impl Factorizer for QuadraticSieve {
     }
 }
 
+/// Generates all primes `p` up to a given `bound` where `n` has a square root mod `p`
+/// ```rust
+/// # use facto_rs::quadratic_sieve::generate_factor_base_qs;
+/// # use rug::Integer;
+/// let n = Integer::from(15347u32);
+/// let factor_base = generate_factor_base_qs(&n, 30);
+/// assert_eq!(factor_base, vec![2, 17, 23, 29]);
+/// ```
 pub fn generate_factor_base_qs(n: &Integer, bound: u64) -> Vec<u64> {
     let mut p = Integer::from(2u32);
-    let mut fb = vec![];
+    let mut fb = vec![2];
     while p < bound {
-        if n.legendre(&p) == 1 {
+        if n.jacobi(&p) == 1 {
             fb.push(p.to_u64().unwrap());
         }
         p = p.next_prime();
@@ -120,9 +191,18 @@ fn find_roots(n: &Integer, factor_base: &[u64]) -> HashMap<u64, (u64, u64)> {
     roots
 }
 
-/// n =  integer we want to factor
-/// s = size of the sieve interval
-/// fb = factor base
+/// Quadratic sieve factorization algorithm.
+/// ```no_run
+/// # use facto_rs::quadratic_sieve::quadratic_sieve;
+/// # use facto_rs::traits::Factorizer;
+/// # use rug::Integer;
+/// let n = Integer::from(15347u32);
+/// let factor_base = vec![2, 17, 23, 29];
+/// let extra_relations = 2;
+/// let sieve_size = 1000;
+/// let res = quadrtic_sieve(&n, sieve_size, &factor_base, extra_relations);
+/// assert_eq!(res, Some((Integer::from(103u32), Integer::from(149u32))));
+/// ```
 pub fn quadratic_sieve(
     n: &Integer,
     s: usize,
@@ -318,7 +398,11 @@ pub fn quadratic_sieve(
             println!("p = {}", p);
             println!("q = {}", q);
             println!("n % p {}", n % &p);
-            return Some((p, q));
+            if p < q {
+                return Some((p, q));
+            } else {
+                return Some((q, p));
+            }
         }
         bar.tick();
     }

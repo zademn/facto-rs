@@ -1,11 +1,27 @@
-use rug::{ops::Pow, Integer};
-use crate::traits::Factorizer;
+//! Module that provides Fermat's factorizzation method and additional functionalities.
 
+use crate::traits::Factorizer;
+use rug::{ops::Pow, Integer};
+
+/// Structure to handle Fermat's factorization.
+/// After creating a [Fermat] structure call `.factor()` to start factorizing the number.
+/// When factoring, it calls the [fermat] function internally.
+/// # Example
+/// ```rust
+/// # use facto_rs::fermat::Fermat;
+/// # use facto_rs::traits::Factorizer;
+/// # use rug::Integer;
+/// let n = Integer::from(5959u32);
+/// let fermat_struct = Fermat::new(n);
+/// let res = fermat_struct.factor();
+/// assert_eq!(res, Some((Integer::from(59u32), Integer::from(101u32))));
+/// ```
 pub struct Fermat {
     n: Integer,
 }
 impl Fermat {
-    fn new(n: Integer) -> Self {
+    /// Creates a new [Fermat] struct.
+    pub fn new(n: Integer) -> Self {
         Self { n }
     }
 }
@@ -15,6 +31,15 @@ impl Factorizer for Fermat {
     }
 }
 
+/// Fermat's factorization method.
+/// # Example
+/// ```no_run
+/// # use facto_rs::fermat::fermat;
+/// # use rug::Integer;
+/// let n = Integer::from(5959u32);
+/// let res = fermat(&n);
+/// assert_eq!(res, Some((Integer::from(59u32), Integer::from(101u32))));
+/// ```
 pub fn fermat(n: &Integer) -> Option<(Integer, Integer)> {
     let n = n.clone();
     let mut a: Integer = n.clone().sqrt() + 1;
@@ -27,7 +52,8 @@ pub fn fermat(n: &Integer) -> Option<(Integer, Integer)> {
     Some((a.clone() - &b, a + &b))
 }
 
-pub fn fermat2(n: Integer) -> (Integer, Integer) {
+#[allow(unused)]
+fn fermat_big(n: Integer) -> (Integer, Integer) {
     let a: Integer = n.clone().sqrt() + 1u32;
     let mut i: Integer = Integer::from(0);
     loop {
@@ -47,12 +73,11 @@ mod tests {
     use std::str::FromStr;
     #[test]
     fn test_fermat() {
-        //let n = Integer::from(100u32);
-        let n = Integer::from_str("383347712330877040452238619329524841763392526146840572232926924642094891453979246383798913394114305368360426867021623649667024217266529000859703542590316063318592391925062014229671423777796679798747131250552455356061834719512365575593221216339005132464338847195248627639623487124025890693416305788160905762011825079336880567461033322240015771102929696350161937950387427696385850443727777996483584464610046380722736790790188061964311222153985614287276995741553706506834906746892708903948496564047090014307484054609862129530262108669567834726352078060081889712109412073731026030466300060341737504223822014714056413752165841749368159510588178604096191956750941078391415634472219765129561622344109769892244712668402761549412177892054051266761597330660545704317210567759828757156904778495608968785747998059857467440128156068391746919684258227682866083662345263659558066864109212457286114506228470930775092735385388316268663664139056183180238043386636254075940621543717531670995823417070666005930452836389812129462051771646048498397195157405386923446893886593048680984896989809135802276892911038588008701926729269812453226891776546037663583893625479252643042517196958990266376741676514631089466493864064316127648074609662749196545969926051").unwrap();
-        let (p, q) = fermat(&n).unwrap();
-        assert_eq!(n, p * q);
+        let n = Integer::from_str("5959").unwrap();
+        let res = fermat(&n);
+        assert_eq!(res, Some((Integer::from(59u32), Integer::from(101u32))));
         let f = Fermat::new(n.clone());
-        let (p, q) = f.factor().unwrap();
-        assert_eq!(n, p * q);
+        let res = f.factor();
+        assert_eq!(res, Some((Integer::from(59u32), Integer::from(101u32))));
     }
 }

@@ -1,3 +1,5 @@
+//! Module that provides Dixon's factorizzation method and additional functionalities
+
 use crate::algorithms::{big_l, fb_factorization, gaussian_elimination_gf2};
 use crate::traits::Factorizer;
 use indicatif::ProgressBar;
@@ -7,7 +9,35 @@ use rug::Complete;
 use rug::Integer;
 use std::collections::HashMap;
 
-struct DixonBuilder {
+/// A builder used to configure a Dixon struct
+/// # Example
+/// To use with computed defaults provide a Rug Integer in the constructor and call `.build()`:
+/// ```rust
+/// # use facto_rs::dixon::{DixonBuilder, Dixon};
+/// # use facto_rs::traits::Factorizer;
+/// # use rug::Integer;
+/// let n = Integer::from(84923u32);
+/// let builder = DixonBuilder::new(n);
+/// let dixon_struct: Dixon = builder.build();
+/// let res = dixon_struct.factor();
+/// assert_eq!(res, Some((Integer::from(163u32), Integer::from(521u32))));
+/// ```
+///
+/// Otherwise you can configure each parameter by calling a function with the name of the parameter:
+/// ```rust
+/// # use facto_rs::dixon::{DixonBuilder, Dixon};
+/// # use facto_rs::traits::Factorizer;
+/// # use rug::Integer;
+/// let n = Integer::from(84923u32);
+/// let builder = DixonBuilder::new(n)
+///     .bound(8)
+///     .factor_base(vec![2, 3, 5, 7])
+///     .extra_relations(3);
+/// let dixon_struct: Dixon = builder.build();
+/// let res = dixon_struct.factor();
+/// assert_eq!(res, Some((Integer::from(163u32), Integer::from(521u32))));
+/// ```
+pub struct DixonBuilder {
     n: Integer,
     bound: Option<u64>,
     factor_base: Option<Vec<u64>>,
@@ -15,6 +45,7 @@ struct DixonBuilder {
 }
 
 impl DixonBuilder {
+    /// Creates a new [DixonBuilder]. You must provide an integer because it's used in `build` to compute defaults.
     pub fn new(n: Integer) -> Self {
         Self {
             n,
@@ -23,34 +54,61 @@ impl DixonBuilder {
             extra_relations: None,
         }
     }
+    /// Manually set the bound.
     pub fn bound(mut self, bound: u64) -> DixonBuilder {
         self.bound = Some(bound);
         self
     }
+    /// Manually set the factor_base.
     pub fn factor_base(mut self, factor_base: Vec<u64>) -> DixonBuilder {
         self.factor_base = Some(factor_base);
         self
     }
+    /// Manually set the number of extra_relations to search.
     pub fn extra_relations(mut self, extra_relations: usize) -> DixonBuilder {
         self.extra_relations = Some(extra_relations);
         self
     }
+    /// Buld a [Dixon] using the provided configuration.
+    /// The default configs:
+    /// - computes the bound as sqrt(L(n)) where L(n) = exp(sqrt(ln(n) * ln(ln(n))))
+    /// - creates the factor base using all primes up to `bound`
+    /// - extra_relations = 2
     pub fn build(self) -> Dixon {
         let bound = self
             .bound
-            .unwrap_or(2 * (big_l(self.n.clone()) as f64).sqrt().round() as u64 + 1);
+            .unwrap_or((big_l(self.n.clone()) as f64).sqrt().round() as u64 + 1);
         let factor_base = self.factor_base.unwrap_or(generate_factor_base(bound));
         let extra_relations = self.extra_relations.unwrap_or(2);
         Dixon::new(self.n, bound, factor_base, extra_relations)
     }
 }
-struct Dixon {
+
+/// Structure to handle Dixon's factorization. 
+/// After creating a Dixon structure call `.factor()` to start factorizing the number.
+/// When factoring, it calls the [dixon] function internally.
+/// # Example
+/// To use with computed defaults provide a Rug Integer in the constructor and call `.build()`:
+/// ```rust
+/// # use facto_rs::dixon::Dixon;
+/// # use facto_rs::traits::Factorizer;
+/// # use rug::Integer;
+/// let n = Integer::from(84923u32);
+/// let factor_base = vec![2, 3, 5, 7];
+/// let extra_relations = 2;
+/// let bound = 8;
+/// let dixon_struct = Dixon::new(n, bound, factor_base, extra_relations);
+/// let res = dixon_struct.factor();
+/// assert_eq!(res, Some((Integer::from(163u32), Integer::from(521u32))));
+/// ```
+pub struct Dixon {
     n: Integer,
     bound: u64,
     factor_base: Vec<u64>,
     extra_relations: usize,
 }
 impl Dixon {
+    /// Creates a new [Dixon] struct.
     pub fn new(n: Integer, bound: u64, factor_base: Vec<u64>, extra_relations: usize) -> Self {
         Self {
             n,
@@ -67,6 +125,12 @@ impl Factorizer for Dixon {
     }
 }
 
+/// Generates all primes up to a given bound.
+/// ```rust
+/// # use facto_rs::dixon::generate_factor_base;
+/// let factor_base = generate_factor_base(8);
+/// assert_eq!(factor_base, vec![2, 3, 5, 7]);
+/// ```
 pub fn generate_factor_base(bound: u64) -> Vec<u64> {
     let mut p = Integer::from(2u32);
     let mut fb = vec![];
@@ -77,8 +141,19 @@ pub fn generate_factor_base(bound: u64) -> Vec<u64> {
     fb
 }
 
-/// Algorithm from here:
-///  https://dspace.cvut.cz/bitstream/handle/10467/94585/F8-DP-2021-Vladyka-Ondrej-DP_Vladyka_Ondrej_2021.pdf?sequence=-1&isAllowed=y
+/// Dixon factorization algorithm.
+/// ```no_run
+/// # use facto_rs::dixon::dixon;
+/// # use facto_rs::traits::Factorizer;
+/// # use rug::Integer;
+/// let n = Integer::from(84923u32);
+/// let factor_base = vec![2, 3, 5, 7];
+/// let extra_relations = 2;
+/// let res = dixon(&n, &factor_base, extra_relations);
+/// assert_eq!(res, Some((Integer::from(163u32), Integer::from(521u32))));
+/// ```
+// # Algorithm from here:
+// # https://dspace.cvut.cz/bitstream/handle/10467/94585/F8-DP-2021-Vladyka-Ondrej-DP_Vladyka_Ondrej_2021.pdf?sequence=-1&isAllowed=y
 pub fn dixon(
     n: &Integer,
     factor_base: &[u64],
@@ -225,7 +300,11 @@ pub fn dixon(
             println!("p = {}", p);
             println!("q = {}", q);
             println!("n % p {}", n % &p);
-            return Some((p, q));
+            if p < q {
+                return Some((p, q));
+            } else {
+                return Some((q, p));
+            }
         }
     }
     None

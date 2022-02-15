@@ -1,3 +1,5 @@
+//! Module that provides lower level algorithms
+
 use nalgebra::{DMatrix, DVector};
 use rug::{Complete, Integer};
 use std::collections::BTreeMap;
@@ -8,9 +10,8 @@ fn xor(a: &[u8], b: &[u8]) -> Vec<u8> {
 }
 
 /// Modular multiplication in u64 without overflow.
-/// If we do the usual a * b % p then we encounter the possibility of overflow. 
-/// Implementation taken rom here:
-/// https://stackoverflow.com/questions/45918104/how-to-do-arithmetic-modulo-another-number-without-overflow
+/// If we do the usual a * b % p then we encounter the possibility of overflow.
+/// Implementation taken rom [here](https://stackoverflow.com/questions/45918104/how-to-do-arithmetic-modulo-another-number-without-overflow)
 pub fn mul_mod(mut x: u64, mut y: u64, n: u64) -> u64 {
     let msb = 0x8000_0000_0000_0000;
     let mut d = 0;
@@ -101,8 +102,7 @@ pub fn fb_factorization(mut n: Integer, fb: &[u64]) -> Option<BTreeMap<u64, u32>
     None
 }
 /// Given a positive odd integer m and integer a the algorithms returns jacobi symbol (a / m)
-/// Algorithm 2.3.5 from here:
-/// http://thales.doa.fmph.uniba.sk/macaj/skola/teoriapoli/primes.pdf
+/// Algorithm 2.3.5 from [Prime numbers a computational perspective](http://thales.doa.fmph.uniba.sk/macaj/skola/teoriapoli/primes.pdf)
 pub fn jacobi(mut a: u64, mut m: u64) -> i64 {
     // 1. Reduction loops
     a %= m;
@@ -133,7 +133,7 @@ pub fn jacobi(mut a: u64, mut m: u64) -> i64 {
 /// Given an odd prime p and an integer a with jacobi(a, p) = 1
 /// the algorithm  a solution x to x^2 ≡ a (mod p)
 /// Resources:
-/// Algorithm 2.3.8 from http://thales.doa.fmph.uniba.sk/macaj/skola/teoriapoli/primes.pdf
+/// Algorithm 2.3.8 from [Prime numbers a computational perspective](http://thales.doa.fmph.uniba.sk/macaj/skola/teoriapoli/primes.pdf)
 /// Wikipedia page: https://en.wikipedia.org/wiki/Tonelli%E2%80%93Shanks_algorithm
 pub fn tonelli_shanks(a: Integer, p: u64) -> u64 {
     let a = (a % p).to_u64().unwrap();
@@ -181,9 +181,8 @@ pub fn tonelli_shanks(a: Integer, p: u64) -> u64 {
 
 /// Given an odd prime p and an integer a with jacobi(a, p) = 1
 /// the algorithm  a solution x to x^2 ≡ a (mod p)
-/// Resources:
-/// Algorithm 2.3.8 from http://thales.doa.fmph.uniba.sk/macaj/skola/teoriapoli/primes.pdf
-/// Wikipedia page: https://en.wikipedia.org/wiki/Tonelli%E2%80%93Shanks_algorithm
+///
+/// Algorithm 2.3.8 from [Prime numbers a computational perspective](http://thales.doa.fmph.uniba.sk/macaj/skola/teoriapoli/primes.pdf)  
 fn tonelli_shanks_big(a: Integer, p: Integer) -> Integer {
     assert_eq!(a.jacobi(&p), 1);
 
@@ -231,10 +230,9 @@ fn tonelli_shanks_big(a: Integer, p: Integer) -> Integer {
     a.pow_mod(&e, &p).unwrap() * d.pow_mod(&(m / 2), &p).unwrap() % &p
 }
 
-/// Fast gaussian elimination in GF(2) implemented after
-/// https://www.cs.umd.edu/~gasarch/TOPICS/factoring/fastgauss.pdf
+/// Fast gaussian elimination in GF(2) implemented after [this paper](https://www.cs.umd.edu/~gasarch/TOPICS/factoring/fastgauss.pdf)  
 /// Takes ownership of the given matrix.
-/// Returns a tuple composed of the modified matrix and a Vec<bool> which marks the rows with pivots
+/// Returns a tuple composed of the modified matrix and a Vec<bool> which marks the rows with pivots  
 pub fn gaussian_elimination_gf2(mut m: DMatrix<u8>) -> (DMatrix<u8>, Vec<bool>) {
     let mut marks = vec![false; m.nrows()];
     for j in 0..m.ncols() {
