@@ -66,3 +66,6 @@ assert_eq!(res, Some((Integer::from(103u32), Integer::from(149u32))));
 ```
 
 For more examples check out the `examples` directory.
+
+### Remarks
+For bigger numbers (> 50 bits) use `--release` mode. Gaussian elimination takes too long for a reason unknown to me yet. 

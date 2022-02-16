@@ -2,9 +2,13 @@
 
 use crate::algorithms::{big_l, fb_factorization, gaussian_elimination_gf2, tonelli_shanks};
 use crate::traits::{Factorizer, LOG_PRIMES};
+use crossbeam;
 use indicatif::ProgressBar;
 use nalgebra::DMatrix;
+use rayon::prelude::*;
 use rug::{ops::Pow, Complete, Integer};
+use std::collections::BTreeMap;
+use std::sync::Arc;
 use std::{collections::HashMap, vec};
 
 /// A builder used to configure a [QuadraticSieve] struct
@@ -31,7 +35,8 @@ use std::{collections::HashMap, vec};
 ///     .bound(30)
 ///     .factor_base(vec![2, 17, 23, 29])
 ///     .extra_relations(1)
-///     .sieve_size(1000);
+///     .sieve_size(1000)
+///     .verbose(true);
 /// let qs: QuadraticSieve = builder.build();
 /// let res = qs.factor();
 /// assert_eq!(res, Some((Integer::from(103u32), Integer::from(149u32))));
@@ -43,6 +48,7 @@ pub struct QuadraticSieveBuilder {
     factor_base: Option<Vec<u64>>,
     extra_relations: usize,
     verbose: bool,
+    num_cores: Option<usize>,
 }
 
 impl QuadraticSieveBuilder {
@@ -56,6 +62,7 @@ impl QuadraticSieveBuilder {
             sieve_size: 10000,
             extra_relations: 5,
             verbose: true,
+            num_cores: None,
         }
     }
     /// Manually set the bound.
@@ -73,6 +80,7 @@ impl QuadraticSieveBuilder {
         self.factor_base = Some(factor_base);
         self
     }
+    /// Manually set the number of extra_relations to search.
     pub fn extra_relations(mut self, extra_relations: usize) -> Self {
         self.extra_relations = extra_relations;
         self
@@ -80,6 +88,11 @@ impl QuadraticSieveBuilder {
     /// Manually set verbosity.
     pub fn verbose(mut self, verbose: bool) -> Self {
         self.verbose = verbose;
+        self
+    }
+    /// Manually set verbosity.
+    pub fn num_cores(mut self, num_cores: usize) -> Self {
+        self.num_cores = Some(num_cores);
         self
     }
     /// Buld a [QuadraticSieve] using the provided configuration.
@@ -107,6 +120,7 @@ impl QuadraticSieveBuilder {
             factor_base,
             self.extra_relations,
             self.verbose,
+            self.num_cores,
         )
     }
 }
@@ -124,7 +138,7 @@ impl QuadraticSieveBuilder {
 /// let extra_relations = 2;
 /// let sieve_size = 1000;
 /// let bound = 30;
-/// let qs = QuadraticSieve::new(n, bound, sieve_size, factor_base, extra_relations);
+/// let qs = QuadraticSieve::new(n, bound, sieve_size, factor_base, extra_relations, true, None);
 /// let res = qs.factor();
 /// assert_eq!(res, Some((Integer::from(103u32), Integer::from(149u32))));
 /// ```
@@ -135,6 +149,7 @@ pub struct QuadraticSieve {
     sieve_size: usize,
     extra_relations: usize,
     verbose: bool,
+    num_cores: Option<usize>,
 }
 
 impl QuadraticSieve {
@@ -146,6 +161,7 @@ impl QuadraticSieve {
         factor_base: Vec<u64>,
         extra_relations: usize,
         verbose: bool,
+        num_cores: Option<usize>,
     ) -> Self {
         Self {
             n,
@@ -154,6 +170,7 @@ impl QuadraticSieve {
             factor_base,
             extra_relations,
             verbose,
+            num_cores,
         }
     }
 }
@@ -166,6 +183,7 @@ impl Factorizer for QuadraticSieve {
             &self.factor_base,
             self.extra_relations,
             self.verbose,
+            self.num_cores,
         )
     }
 }
@@ -207,6 +225,56 @@ fn find_roots(n: &Integer, factor_base: &[u64]) -> HashMap<u64, (u64, u64)> {
     roots
 }
 
+/// Sieves for possible relations. Returns:
+/// - A vector of x
+/// - A vector of qx
+/// - A vector of the factorization of each qx
+fn sieve(
+    n: &Integer,
+    sieve_size: usize,
+    start: &Integer,
+    factor_base: &[u64],
+    roots: &HashMap<u64, (u64, u64)>,
+    epsilon: u32,
+) -> (Vec<Integer>, Vec<Integer>, Vec<BTreeMap<u64, u32>>) {
+    let mut sieve_vec = vec![0u32; sieve_size + 1]; // sieve array
+                                                    // Init thread vectors to keep relations
+    let mut relations_x = Vec::new();
+    let mut relations_qx = Vec::new();
+    let mut exponents = Vec::new();
+    for (&p, &(xp, xp_)) in roots {
+        let xp = Integer::from(xp);
+        let xp_ = Integer::from(xp_);
+        let mut j = (((xp.clone() - start) % p + p) % p).to_usize().unwrap();
+        while j < sieve_size {
+            sieve_vec[j] += *LOG_PRIMES.get(&p).unwrap() as u32;
+            j += p as usize;
+        }
+        if xp != 1u32 {
+            let mut j = (((xp_.clone() - start) % p + p) % p).to_usize().unwrap();
+            while j < sieve_size {
+                sieve_vec[j] += *LOG_PRIMES.get(&p).unwrap() as u32;
+                j += p as usize;
+            }
+        }
+    }
+    // Check for B-smooth numbers in the interval
+    for (i, &log_sum) in sieve_vec.iter().enumerate() {
+        // Check if the log sum is above the threshold
+        if log_sum as u32 >= epsilon {
+            let xi = start.clone() + i as u64;
+            let qxi = (xi.clone() * &xi - n) % n;
+            // Check for B-smooth and add to relations
+            if let Some(factorization) = fb_factorization(qxi.clone(), factor_base) {
+                relations_x.push(xi);
+                relations_qx.push(qxi % n);
+                exponents.push(factorization);
+            }
+        }
+    }
+    (relations_x, relations_qx, exponents)
+}
+
 /// Quadratic sieve factorization algorithm.
 /// ```no_run
 /// # use facto_rs::quadratic_sieve::quadratic_sieve;
@@ -216,15 +284,16 @@ fn find_roots(n: &Integer, factor_base: &[u64]) -> HashMap<u64, (u64, u64)> {
 /// let factor_base = vec![2, 17, 23, 29];
 /// let extra_relations = 2;
 /// let sieve_size = 1000;
-/// let res = quadrtic_sieve(&n, sieve_size, &factor_base, extra_relations);
+/// let res = quadratic_sieve(&n, sieve_size, &factor_base, extra_relations, true, None);
 /// assert_eq!(res, Some((Integer::from(103u32), Integer::from(149u32))));
 /// ```
 pub fn quadratic_sieve(
     n: &Integer,
-    s: usize,
+    sieve_size: usize,
     factor_base: &[u64],
     extra_relations: usize,
     verbose: bool,
+    num_cores: Option<usize>,
 ) -> Option<(Integer, Integer)> {
     let n = n.clone();
     let k = factor_base.len() + extra_relations; // minimum of relations we want
@@ -256,64 +325,59 @@ pub fn quadratic_sieve(
     if verbose {
         println!("Starting the sieving process");
         bar = Some(ProgressBar::new(k as u64));
+        bar.as_mut().unwrap().set_position(0);
     }
     let mut i = 0;
     loop {
         // Set interval bounds. We move in steps of `s`
-        let start = n.clone().sqrt() + 1u32 + i * s as u32;
-        let end = start.clone() + s as u32;
+        let start = n.clone().sqrt() + 1u32 + i * sieve_size as u32;
+        let end = start.clone() + sieve_size as u32;
         if end > n {
             panic!("not enough relations found")
         }
-
-        // Init sieve vector
-        let mut sieve = vec![0u32; s]; // sieve array
-                                       // let mut sieve = HashMap::new();
-
         // Threshold.
         let t = (start.clone().pow(2) - &n).significant_bits();
         //let epsilon = if t < 22 { 2 } else { t - 20 };
         let epsilon = t - (max_factor as f64).log2().round() as u32; // ugh.
 
-        // Log implementation
-        // Iterate through the primes and roots
-        for (&p, &(xp, xp_)) in roots.iter() {
-            let xp = Integer::from(xp);
-            let xp_ = Integer::from(xp_);
-
-            let mut j = (((xp.clone() - &start) % p + p) % p).to_usize().unwrap();
-            while j < s {
-                sieve[j] += *LOG_PRIMES.get(&p).unwrap() as u32;
-                j += p as usize;
+        // Check for multithreading.
+        if let Some(num_cores) = num_cores {
+            let interval_length = (end.clone() - &start).to_usize().unwrap() / num_cores;
+            let res: Vec<(Vec<Integer>, Vec<Integer>, Vec<BTreeMap<u64, u32>>)> = (0..num_cores)
+                .into_par_iter()
+                .map(|core| {
+                    let sieve_size_interval = sieve_size / num_cores;
+                    let start_interval = start.clone() + interval_length as u64 * core as u64;
+                    // Init thread vectors to keep relations
+                    sieve(
+                        &n,
+                        sieve_size_interval,
+                        &start_interval,
+                        factor_base,
+                        &roots,
+                        epsilon,
+                    )
+                })
+                .collect();
+            for (rel_x, rel_qx, exp) in res {
+                relations_x.extend(rel_x);
+                relations_qx.extend(rel_qx);
+                exponents.extend(exp);
             }
-            if xp != 1u32 {
-                let mut j = (((xp_.clone() - &start) % p + p) % p).to_usize().unwrap();
-                while j < s {
-                    sieve[j] += *LOG_PRIMES.get(&p).unwrap() as u32;
-                    j += p as usize;
-                }
-            }
+        } else {
+            // No multithreading
+            let (rel_x, rel_qx, exp) = sieve(&n, sieve_size, &start, factor_base, &roots, epsilon);
+            relations_x.extend(rel_x);
+            relations_qx.extend(rel_qx);
+            exponents.extend(exp);
         }
 
-        // Check for B-smooth numbers in the interval
-        for (i, &log_sum) in sieve.iter().enumerate() {
-            // Check if the log sum is above the threshold
-            if log_sum as u32 >= epsilon {
-                let xi = start.clone() + i as u64;
-                let qxi = (xi.clone() * &xi - &n) % &n;
-                // Check for B-smooth and add to relations
-                if let Some(factorization) = fb_factorization(qxi.clone(), factor_base) {
-                    relations_x.push(xi);
-                    relations_qx.push(qxi % &n);
-                    exponents.push(factorization);
-                }
-            }
-        }
         if let Some(bar) = bar.as_mut() {
             bar.set_position(relations_x.len() as u64);
             bar.set_message(format!("Sieving interval: [{}, {}]", start, end));
         }
 
+        // Check if we found enough relations
         if relations_x.len() > k {
             if let Some(bar) = bar {
                 bar.finish();
@@ -459,7 +523,7 @@ mod tests {
         let bound = 2 * (big_l(n.clone()) as f64).sqrt().round() as u64 + 1;
         let fb = generate_factor_base_qs(&n, bound);
         let s = 100000;
-        let res = quadratic_sieve(&n, s, &fb, 5, false);
+        let res = quadratic_sieve(&n, s, &fb, 5, false, None);
         assert_eq!(res, Some((p, q)));
     }
 
