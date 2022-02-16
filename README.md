@@ -20,7 +20,7 @@ For `QuadraticSieve` and `Dixon` I provided 2 builder classes `QuadraticSieveBui
 Factorization using Fermat's algorithm
 ```rust
 // Using the function
-let n = Integer::from_str("5959").unwrap();
+let n = Integer::from_str_radix("5959", 10).unwrap();
 let res = fermat(&n);
 assert_eq!(res, Some((Integer::from(59u32), Integer::from(101u32))));
 // Using the struct
@@ -45,7 +45,7 @@ An example using the builder API:
 ```rust
 let n = Integer::from(15347u32);
 let builder = QuadraticSieveBuilder::new(n)
-    .bound(30) 
+    .bound(30)
     .factor_base(vec![2, 17, 23, 29])
     .extra_relations(1)
     .sieve_size(1000);
@@ -59,7 +59,7 @@ For example here we set only the bound parameter:
 ```rust
 let n = Integer::from(15347u32);
 let builder = QuadraticSieveBuilder::new(n)
-    .bound(30) 
+    .bound(30);
 let qs: QuadraticSieve = builder.build();
 let res = qs.factor();
 assert_eq!(res, Some((Integer::from(103u32), Integer::from(149u32))));
