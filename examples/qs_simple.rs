@@ -1,3 +1,4 @@
+use facto_rs::quadratic_sieve::log2_vec;
 use facto_rs::Factorizer;
 use facto_rs::QuadraticSieve;
 use rug::Integer;
@@ -8,12 +9,14 @@ fn main() {
     let extra_relations = 2;
     let sieve_size = 1000;
     let bound = 30;
+    let log_primes = log2_vec(&factor_base);
     let qs = QuadraticSieve::new(
         n,
         bound,
         sieve_size,
         factor_base,
         extra_relations,
+        log_primes,
         true, // verbose
         None, // no multithreading
     );

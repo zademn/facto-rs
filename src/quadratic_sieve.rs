@@ -1,14 +1,11 @@
 //! Module that provides the quadratic sieve factorizzation method and additional functionalities.
 
 use crate::algorithms::{big_l, fb_factorization, gaussian_elimination_gf2, tonelli_shanks};
-use crate::traits::{Factorizer, LOG_PRIMES};
-use crossbeam;
+use crate::traits::Factorizer;
 use indicatif::ProgressBar;
 use nalgebra::DMatrix;
 use rayon::prelude::*;
 use rug::{ops::Pow, Complete, Integer};
-use std::collections::BTreeMap;
-use std::sync::Arc;
 use std::{collections::HashMap, vec};
 
 /// A builder used to configure a [QuadraticSieve] struct
@@ -113,12 +110,15 @@ impl QuadraticSieveBuilder {
         } else {
             self.sieve_size
         };
+
+        let log_primes = log2_vec(&factor_base);
         QuadraticSieve::new(
             self.n,
             bound,
             sieve_size,
             factor_base,
             self.extra_relations,
+            log_primes,
             self.verbose,
             self.num_cores,
         )
@@ -130,7 +130,7 @@ impl QuadraticSieveBuilder {
 /// # Example
 /// To use with computed defaults provide a Rug Integer in the constructor and call `.build()`:
 /// ```rust
-/// # use facto_rs::quadratic_sieve::QuadraticSieve;
+/// # use facto_rs::quadratic_sieve::{QuadraticSieve, log2_vec};
 /// # use facto_rs::traits::Factorizer;
 /// # use rug::Integer;
 /// let n = Integer::from(15347u32);
@@ -138,7 +138,8 @@ impl QuadraticSieveBuilder {
 /// let extra_relations = 2;
 /// let sieve_size = 1000;
 /// let bound = 30;
-/// let qs = QuadraticSieve::new(n, bound, sieve_size, factor_base, extra_relations, true, None);
+/// let log_primes = log2_vec(&factor_base);
+/// let qs = QuadraticSieve::new(n, bound, sieve_size, factor_base, extra_relations, log_primes, true, None);
 /// let res = qs.factor();
 /// assert_eq!(res, Some((Integer::from(103u32), Integer::from(149u32))));
 /// ```
@@ -148,6 +149,7 @@ pub struct QuadraticSieve {
     factor_base: Vec<u64>,
     sieve_size: usize,
     extra_relations: usize,
+    log_primes: Vec<u8>,
     verbose: bool,
     num_cores: Option<usize>,
 }
@@ -160,6 +162,7 @@ impl QuadraticSieve {
         sieve_size: usize,
         factor_base: Vec<u64>,
         extra_relations: usize,
+        log_primes: Vec<u8>,
         verbose: bool,
         num_cores: Option<usize>,
     ) -> Self {
@@ -171,6 +174,7 @@ impl QuadraticSieve {
             extra_relations,
             verbose,
             num_cores,
+            log_primes,
         }
     }
 }
@@ -182,6 +186,7 @@ impl Factorizer for QuadraticSieve {
             self.sieve_size,
             &self.factor_base,
             self.extra_relations,
+            &self.log_primes,
             self.verbose,
             self.num_cores,
         )
@@ -210,8 +215,8 @@ pub fn generate_factor_base_qs(n: &Integer, bound: u64) -> Vec<u64> {
 
 /// Find roots +-a_i such that  a_i^2 ≡ n (mod p_i)
 /// for a given `n` and a given factor_base
-fn find_roots(n: &Integer, factor_base: &[u64]) -> HashMap<u64, (u64, u64)> {
-    let mut roots = HashMap::new();
+fn find_roots(n: &Integer, factor_base: &[u64]) -> Vec<(u64, u64)> {
+    let mut roots = Vec::with_capacity(factor_base.len());
     for &pi in factor_base.iter().skip(1) {
         let root = tonelli_shanks(n.clone(), pi);
         // use algorithms::pow_mod;
@@ -220,7 +225,7 @@ fn find_roots(n: &Integer, factor_base: &[u64]) -> HashMap<u64, (u64, u64)> {
         //     (n.clone() % pi).to_u64().unwrap(),
         //     "{root}, {pi}, {n}"
         // );
-        roots.insert(pi, (root, pi - root));
+        roots.push((root, pi - root));
     }
     roots
 }
@@ -234,26 +239,32 @@ fn sieve(
     sieve_size: usize,
     start: &Integer,
     factor_base: &[u64],
-    roots: &HashMap<u64, (u64, u64)>,
+    roots: &[(u64, u64)],
     epsilon: u32,
-) -> (Vec<Integer>, Vec<Integer>, Vec<BTreeMap<u64, u32>>) {
+    log_primes: &[u8],
+) -> (Vec<Integer>, Vec<Integer>, Vec<Vec<(u64, u32)>>) {
     let mut sieve_vec = vec![0u32; sieve_size + 1]; // sieve array
                                                     // Init thread vectors to keep relations
     let mut relations_x = Vec::new();
     let mut relations_qx = Vec::new();
     let mut exponents = Vec::new();
-    for (&p, &(xp, xp_)) in roots {
+    for (i, ((&p, &(xp, xp_)), &log_p)) in factor_base.iter().zip(roots).zip(log_primes).enumerate()
+    {
         let xp = Integer::from(xp);
         let xp_ = Integer::from(xp_);
         let mut j = (((xp.clone() - start) % p + p) % p).to_usize().unwrap();
         while j < sieve_size {
-            sieve_vec[j] += *LOG_PRIMES.get(&p).unwrap() as u32;
+            //sieve_vec[j] += log_primes[i] as u32;
+            sieve_vec[j] += log_p as u32;
+            //sieve_vec[j] += *LOG_PRIMES.get(&p).unwrap() as u32;
             j += p as usize;
         }
         if xp != 1u32 {
             let mut j = (((xp_.clone() - start) % p + p) % p).to_usize().unwrap();
             while j < sieve_size {
-                sieve_vec[j] += *LOG_PRIMES.get(&p).unwrap() as u32;
+                //sieve_vec[j] += log_primes[i] as u32;
+                sieve_vec[j] += log_p as u32;
+                // sieve_vec[j] += *LOG_PRIMES.get(&p).unwrap() as u32;
                 j += p as usize;
             }
         }
@@ -277,14 +288,15 @@ fn sieve(
 
 /// Quadratic sieve factorization algorithm.
 /// ```no_run
-/// # use facto_rs::quadratic_sieve::quadratic_sieve;
+/// # use facto_rs::quadratic_sieve::{quadratic_sieve, log2_vec};
 /// # use facto_rs::traits::Factorizer;
 /// # use rug::Integer;
 /// let n = Integer::from(15347u32);
 /// let factor_base = vec![2, 17, 23, 29];
 /// let extra_relations = 2;
 /// let sieve_size = 1000;
-/// let res = quadratic_sieve(&n, sieve_size, &factor_base, extra_relations, true, None);
+/// let log_primes = log2_vec(&factor_base);
+/// let res = quadratic_sieve(&n, sieve_size, &factor_base, extra_relations, &log_primes, true, None);
 /// assert_eq!(res, Some((Integer::from(103u32), Integer::from(149u32))));
 /// ```
 pub fn quadratic_sieve(
@@ -292,6 +304,7 @@ pub fn quadratic_sieve(
     sieve_size: usize,
     factor_base: &[u64],
     extra_relations: usize,
+    log_primes: &[u8],
     verbose: bool,
     num_cores: Option<usize>,
 ) -> Option<(Integer, Integer)> {
@@ -306,15 +319,14 @@ pub fn quadratic_sieve(
     if verbose {
         println!("Searching roots...");
     }
-    let mut roots: HashMap<u64, (u64, u64)> = find_roots(&n, factor_base);
-    roots.insert(2, (1, 1)); // add 2 to factor base
+    let mut roots: Vec<(u64, u64)> = Vec::with_capacity(factor_base.len());
+    roots.push((1, 1)); // add 2 to factor base
+    roots.extend(find_roots(&n, factor_base));
     if verbose {
         println!("Roots computed");
     }
 
     // 2. Sieving
-    // let mut relations = HashMap::new();
-    // let mut exponents = HashMap::new();
     let mut relations_x = Vec::new();
     let mut relations_qx = Vec::new();
     let mut exponents = Vec::new();
@@ -343,7 +355,7 @@ pub fn quadratic_sieve(
         // Check for multithreading.
         if let Some(num_cores) = num_cores {
             let interval_length = (end.clone() - &start).to_usize().unwrap() / num_cores;
-            let res: Vec<(Vec<Integer>, Vec<Integer>, Vec<BTreeMap<u64, u32>>)> = (0..num_cores)
+            let res: Vec<(Vec<Integer>, Vec<Integer>, Vec<Vec<(u64, u32)>>)> = (0..num_cores)
                 .into_par_iter()
                 .map(|core| {
                     let sieve_size_interval = sieve_size / num_cores;
@@ -356,6 +368,7 @@ pub fn quadratic_sieve(
                         factor_base,
                         &roots,
                         epsilon,
+                        &log_primes,
                     )
                 })
                 .collect();
@@ -366,7 +379,15 @@ pub fn quadratic_sieve(
             }
         } else {
             // No multithreading
-            let (rel_x, rel_qx, exp) = sieve(&n, sieve_size, &start, factor_base, &roots, epsilon);
+            let (rel_x, rel_qx, exp) = sieve(
+                &n,
+                sieve_size,
+                &start,
+                factor_base,
+                &roots,
+                epsilon,
+                &log_primes,
+            );
             relations_x.extend(rel_x);
             relations_qx.extend(rel_qx);
             exponents.extend(exp);
@@ -397,7 +418,7 @@ pub fn quadratic_sieve(
     // Gather all them into a vec and %2 them
     let all_exponents = exponents
         .iter()
-        .map(|v| v.values().map(|e| *e as u8 % 2).collect::<Vec<u8>>())
+        .map(|v| v.iter().map(|(_, e)| *e as u8 % 2).collect::<Vec<u8>>())
         .flatten()
         .collect::<Vec<u8>>();
     // Create the matrix
@@ -470,7 +491,7 @@ pub fn quadratic_sieve(
             // Collect primes and add exponents to create factorization
             let mut factorization = HashMap::new();
             for &idx in rows_idx.iter() {
-                for (&p, &e) in exponents[idx].iter() {
+                for &(p, e) in exponents[idx].iter() {
                     *factorization.entry(p).or_insert(0) += e;
                 }
             }
@@ -509,6 +530,12 @@ pub fn quadratic_sieve(
     None
 }
 
+/// Computes the log2 of each element of a vector.
+pub fn log2_vec(v: &[u64]) -> Vec<u8> {
+    v.iter()
+        .map(|p| (*p as f64).log2().round() as u8)
+        .collect::<Vec<u8>>()
+}
 #[cfg(test)]
 mod tests {
 
@@ -523,7 +550,8 @@ mod tests {
         let bound = 2 * (big_l(n.clone()) as f64).sqrt().round() as u64 + 1;
         let fb = generate_factor_base_qs(&n, bound);
         let s = 100000;
-        let res = quadratic_sieve(&n, s, &fb, 5, false, None);
+        let log_primes = log2_vec(&fb);
+        let res = quadratic_sieve(&n, s, &fb, 5, &log_primes, false, None);
         assert_eq!(res, Some((p, q)));
     }
 

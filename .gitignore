@@ -175,3 +175,7 @@ Cargo.lock
 
 .vscode/
 test.py
+
+flamegraph*
+perf.data
+perf.data.old

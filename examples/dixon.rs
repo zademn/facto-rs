@@ -1,6 +1,5 @@
-
-use facto_rs::Factorizer;
 use facto_rs::DixonBuilder;
+use facto_rs::Factorizer;
 use rug::Integer;
 
 fn main() {

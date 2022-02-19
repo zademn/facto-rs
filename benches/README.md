@@ -7,17 +7,17 @@ Results on Intel(R) Core(TM) i5-10400F CPU @ 2.90GHz, 2904 Mhz, 6 Core(s), 12 Lo
 
 Single:
 ```
-qs/qs_32                time:   [4.2872 ms 4.2967 ms 4.3134 ms]
-qs/qs_64                time:   [9.9433 ms 9.9932 ms 10.036 ms]
-qs/qs_128               time:   [4.4153 s 4.4337 s 4.4565 s]
+qs/qs_32                time:   [2.9698 ms 2.9891 ms 3.0170 ms]
+qs/qs_64                time:   [5.2339 ms 5.3977 ms 5.7171 ms]
+qs/qs_128               time:   [2.5723 s 2.5869 s 2.6025 s]
 ```
 
 Threaded:
 ```
-qs/qs_threaded_32       time:   [11.147 ms 11.428 ms 11.588 ms]
-qs/qs_threaded_64       time:   [18.051 ms 18.841 ms 20.146 ms]
-qs/qs_threaded_128      time:   [1.5326 s 1.5560 s 1.5862 s]
-qs/qs_threaded_160      time:   [154.85 s 156.94 s 159.55 s]
+qs/qs_threaded_32       time:   [8.4680 ms 8.8760 ms 9.3579 ms]
+qs/qs_threaded_64       time:   [9.8993 ms 10.133 ms 10.630 ms]
+qs/qs_threaded_128      time:   [837.28 ms 843.95 ms 850.63 ms]
+qs/qs_threaded_160      time:   [127.83 s 128.41 s 129.34 s]
 ```
 
 Some hyperparameters (such as sieve_size) or custom bounds / factor bases can be changed to improve the numbers.
