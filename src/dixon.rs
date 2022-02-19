@@ -84,7 +84,7 @@ impl DixonBuilder {
     }
 }
 
-/// Structure to handle Dixon's factorization. 
+/// Structure to handle Dixon's factorization.
 /// After creating a Dixon structure call `.factor()` to start factorizing the number.
 /// When factoring, it calls the [dixon] function internally.
 /// # Example
@@ -208,7 +208,9 @@ pub fn dixon(
         &exponents
             .iter()
             .map(|v| {
-                RowDVector::from_row_slice(&v.values().map(|e| (*e % 2) as u8).collect::<Vec<u8>>())
+                RowDVector::from_row_slice(
+                    &v.iter().map(|(_, e)| (*e % 2) as u8).collect::<Vec<u8>>(),
+                )
             })
             .collect::<Vec<RowDVector<u8>>>(),
     );
@@ -274,7 +276,7 @@ pub fn dixon(
             // Collect primes and add exponents to create factorization
             let mut factorization = HashMap::new();
             for &idx in rows_idx.iter() {
-                for (&p, &e) in exponents[idx].iter() {
+                for &(p, e) in exponents[idx].iter() {
                     *factorization.entry(p).or_insert(0) += e;
                 }
             }

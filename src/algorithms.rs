@@ -2,7 +2,6 @@
 
 use nalgebra::{DMatrix, DVector};
 use rug::{Complete, Integer};
-use std::collections::BTreeMap;
 
 /// xor 2 arrays of u8 against each other.
 fn xor(a: &[u8], b: &[u8]) -> Vec<u8> {
@@ -89,11 +88,11 @@ pub fn remove_factor(mut n: u64, factor: u64) -> (u64, u64) {
 
 /// Computes the prime factorization of an integer `n` given a factor base by repeated division
 /// If at the end `n!=1` then the factor base is toos small and the function will return None
-pub fn fb_factorization(mut n: Integer, fb: &[u64]) -> Option<BTreeMap<u64, u32>> {
-    let mut res = BTreeMap::new();
+pub fn fb_factorization(mut n: Integer, fb: &[u64]) -> Option<Vec<(u64, u32)>> {
+    let mut res = Vec::with_capacity(fb.len());
     for &p in fb {
         let (r, c) = n.remove_factor(&Integer::from(p));
-        res.insert(p, c);
+        res.push((p, c));
         n = r;
     }
     if n == 1u32 {
@@ -405,10 +404,10 @@ mod tests {
     #[test]
     fn test_fb_factorization() {
         let n = 2u64.pow(3) * 3u64.pow(4) * 5u64.pow(10);
-        let mut good = BTreeMap::new();
-        good.insert(2, 3);
-        good.insert(3, 4);
-        good.insert(5, 10);
+        let mut good = Vec::new();
+        good.push((2, 3));
+        good.push((3, 4));
+        good.push((5, 10));
         let n = Integer::from(n);
         let res = fb_factorization(n.clone(), &[2, 3, 5]);
         assert_eq!(res, Some(good));

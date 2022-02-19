@@ -8,22 +8,22 @@ fn qs_benchmark(c: &mut Criterion) {
         Integer::from_str_radix("54941", 10).unwrap(),
         Integer::from_str_radix("2410055309", 10).unwrap(),
         Integer::from_str_radix("9270271495854497069", 10).unwrap(),
-        Integer::from_str_radix("629449496776611089395111", 10).unwrap(),
+        //Integer::from_str_radix("629449496776611089395111", 10).unwrap(),
     ];
     let qs = [
         Integer::from_str_radix("58271", 10).unwrap(),
         Integer::from_str_radix("3406603901", 10).unwrap(),
         Integer::from_str_radix("15658485116535926689", 10).unwrap(),
-        Integer::from_str_radix("1157146192290239025720557", 10).unwrap(),
+        //Integer::from_str_radix("1157146192290239025720557", 10).unwrap(),
     ];
     let ns = [
         Integer::from_str_radix("3201467011", 10).unwrap(),
         Integer::from_str_radix("8210103817265160409", 10).unwrap(),
         Integer::from_str_radix("145158408244084883965506502843949374541", 10).unwrap(),
-        Integer::from_str_radix("728365088434062605443262763506401413148047996827", 10).unwrap(),
+        //Integer::from_str_radix("728365088434062605443262763506401413148047996827", 10).unwrap(),
     ];
 
-    let bits = [32, 64, 128, 160];
+    let bits = [32, 64, 128];
     for (((p, q), n), bit) in ps.iter().zip(qs).zip(ns).zip(bits) {
         let qsieve_builder = QuadraticSieveBuilder::new(n).verbose(false);
         let qsieve = qsieve_builder.build();
