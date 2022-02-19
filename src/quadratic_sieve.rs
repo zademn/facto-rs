@@ -2,7 +2,6 @@
 
 use crate::algorithms::{big_l, fb_factorization, gaussian_elimination_gf2, tonelli_shanks};
 use crate::traits::Factorizer;
-use crate::traits::LOG_PRIMES;
 use indicatif::ProgressBar;
 use nalgebra::DMatrix;
 use rayon::prelude::*;
@@ -216,7 +215,7 @@ pub fn generate_factor_base_qs(n: &Integer, bound: u64) -> Vec<u64> {
 
 /// Find roots +-a_i such that  a_i^2 ≡ n (mod p_i)
 /// for a given `n` and a given factor_base
-fn find_roots(n: &Integer, factor_base: &[u64]) -> Vec<(u64, (u64, u64))> {
+fn find_roots(n: &Integer, factor_base: &[u64]) -> Vec<(u64, u64)> {
     let mut roots = Vec::with_capacity(factor_base.len());
     for &pi in factor_base.iter().skip(1) {
         let root = tonelli_shanks(n.clone(), pi);
@@ -226,7 +225,7 @@ fn find_roots(n: &Integer, factor_base: &[u64]) -> Vec<(u64, (u64, u64))> {
         //     (n.clone() % pi).to_u64().unwrap(),
         //     "{root}, {pi}, {n}"
         // );
-        roots.push((pi, (root, pi - root)));
+        roots.push((root, pi - root));
     }
     roots
 }
@@ -240,7 +239,7 @@ fn sieve(
     sieve_size: usize,
     start: &Integer,
     factor_base: &[u64],
-    roots: &Vec<(u64, (u64, u64))>,
+    roots: &[(u64, u64)],
     epsilon: u32,
     log_primes: &[u8],
 ) -> (Vec<Integer>, Vec<Integer>, Vec<Vec<(u64, u32)>>) {
@@ -249,20 +248,23 @@ fn sieve(
     let mut relations_x = Vec::new();
     let mut relations_qx = Vec::new();
     let mut exponents = Vec::new();
-    for (i, &(p, (xp, xp_))) in roots.iter().enumerate() {
+    for (i, ((&p, &(xp, xp_)), &log_p)) in factor_base.iter().zip(roots).zip(log_primes).enumerate()
+    {
         let xp = Integer::from(xp);
         let xp_ = Integer::from(xp_);
         let mut j = (((xp.clone() - start) % p + p) % p).to_usize().unwrap();
         while j < sieve_size {
             //sieve_vec[j] += log_primes[i] as u32;
-            sieve_vec[j] += *LOG_PRIMES.get(&p).unwrap() as u32;
+            sieve_vec[j] += log_p as u32;
+            //sieve_vec[j] += *LOG_PRIMES.get(&p).unwrap() as u32;
             j += p as usize;
         }
         if xp != 1u32 {
             let mut j = (((xp_.clone() - start) % p + p) % p).to_usize().unwrap();
             while j < sieve_size {
                 //sieve_vec[j] += log_primes[i] as u32;
-                sieve_vec[j] += *LOG_PRIMES.get(&p).unwrap() as u32;
+                sieve_vec[j] += log_p as u32;
+                // sieve_vec[j] += *LOG_PRIMES.get(&p).unwrap() as u32;
                 j += p as usize;
             }
         }
@@ -317,8 +319,9 @@ pub fn quadratic_sieve(
     if verbose {
         println!("Searching roots...");
     }
-    let mut roots: Vec<(u64, (u64, u64))> = find_roots(&n, factor_base);
-    roots.push((2, (1, 1))); // add 2 to factor base
+    let mut roots: Vec<(u64, u64)> = Vec::with_capacity(factor_base.len());
+    roots.push((1, 1)); // add 2 to factor base
+    roots.extend(find_roots(&n, factor_base));
     if verbose {
         println!("Roots computed");
     }
