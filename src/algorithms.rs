@@ -11,49 +11,56 @@ fn xor(a: &[u8], b: &[u8]) -> Vec<u8> {
 /// Modular multiplication in u64 without overflow.
 /// If we do the usual a * b % p then we encounter the possibility of overflow.
 /// Implementation taken rom [here](https://stackoverflow.com/questions/45918104/how-to-do-arithmetic-modulo-another-number-without-overflow)
-pub fn mul_mod(mut x: u64, mut y: u64, n: u64) -> u64 {
-    let msb = 0x8000_0000_0000_0000;
-    let mut d = 0;
-    let mp2 = n >> 1;
-    x %= n;
-    y %= n;
+// pub fn mul_mod(mut x: u64, mut y: u64, n: u64) -> u64 {
+//     let msb = 0x8000_0000_0000_0000;
+//     let mut d = 0;
+//     let mp2 = n >> 1;
+//     x %= n;
+//     y %= n;
 
-    if n & msb == 0 {
-        for _ in 0..64 {
-            d = if d > mp2 { (d << 1) - n } else { d << 1 };
-            if x & msb != 0 {
-                d += y;
-            }
-            if d >= n {
-                d -= n;
-            }
-            x <<= 1;
-        }
-        d
-    } else {
-        for _ in 0..64 {
-            d = if d > mp2 {
-                d.wrapping_shl(1).wrapping_sub(n)
-            } else {
-                // the case d == m && x == 0 is taken care of
-                // after the end of the loop
-                d << 1
-            };
-            if x & msb != 0 {
-                let (mut d1, overflow) = d.overflowing_add(y);
-                if overflow {
-                    d1 = d1.wrapping_sub(n);
-                }
-                d = if d1 >= n { d1 - n } else { d1 };
-            }
-            x <<= 1;
-        }
-        if d >= n {
-            d - n
-        } else {
-            d
-        }
-    }
+//     if n & msb == 0 {
+//         for _ in 0..64 {
+//             d = if d > mp2 { (d << 1) - n } else { d << 1 };
+//             if x & msb != 0 {
+//                 d += y;
+//             }
+//             if d >= n {
+//                 d -= n;
+//             }
+//             x <<= 1;
+//         }
+//         d
+//     } else {
+//         for _ in 0..64 {
+//             d = if d > mp2 {
+//                 d.wrapping_shl(1).wrapping_sub(n)
+//             } else {
+//                 // the case d == m && x == 0 is taken care of
+//                 // after the end of the loop
+//                 d << 1
+//             };
+//             if x & msb != 0 {
+//                 let (mut d1, overflow) = d.overflowing_add(y);
+//                 if overflow {
+//                     d1 = d1.wrapping_sub(n);
+//                 }
+//                 d = if d1 >= n { d1 - n } else { d1 };
+//             }
+//             x <<= 1;
+//         }
+//         if d >= n {
+//             d - n
+//         } else {
+//             d
+//         }
+//     }
+// }
+
+/// Modular multiplication in u64 without overflow.
+/// If we do the usual a * b % p then we encounter the possibility of overflow.
+#[inline(always)]
+pub fn mul_mod(x: u64, y: u64, n: u64) -> u64 {
+    ((x as u128) * (y as u128) % (n as u128)) as u64
 }
 
 /// Simple left to right exponentiation
