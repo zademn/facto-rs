@@ -3,7 +3,7 @@ use facto_rs::{Factorizer, QuadraticSieveBuilder};
 use rug::Integer;
 
 fn qs_benchmark(c: &mut Criterion) {
-    let mut group = c.benchmark_group("qs");
+    let mut group = c.benchmark_group("single");
     let ps = [
         Integer::from_str_radix("54941", 10).unwrap(),
         Integer::from_str_radix("2410055309", 10).unwrap(),
@@ -39,7 +39,7 @@ fn qs_benchmark(c: &mut Criterion) {
 }
 
 fn qs_threaded_benchmark(c: &mut Criterion) {
-    let mut group = c.benchmark_group("qs_threaded");
+    let mut group = c.benchmark_group("threaded");
     let ps = [
         Integer::from_str_radix("54941", 10).unwrap(),
         Integer::from_str_radix("2410055309", 10).unwrap(),
