@@ -3,13 +3,13 @@ Ex: `cargo bench -- qs_32`
 
 
 
-Results on Intel(R) Core(TM) i5-10400F CPU @ 2.90GHz, 2904 Mhz, 6 Core(s), 12 Logical Processor(s) running Windows 10, on WSL2:
+Results on Intel(R) Core(TM) i5-10400F CPU @ 2.90GHz, 2904 Mhz, 6 Core(s), 12 Logical Processor(s) running Manjaro KDE:
 
 Single:
 ```
-qs/qs_32                time:   [2.9698 ms 2.9891 ms 3.0170 ms]
-qs/qs_64                time:   [5.2339 ms 5.3977 ms 5.7171 ms]
-qs/qs_128               time:   [2.5723 s 2.5869 s 2.6025 s]
+single/qs_32            time:   [2.9331 ms 2.9614 ms 3.0210 ms]
+single/qs_64            time:   [4.9804 ms 5.0204 ms 5.0529 ms]
+single/qs_128           time:   [2.2731 s 2.2870 s 2.3029 s]
 ```
 
 Threaded:
